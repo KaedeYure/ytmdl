@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YTMDL - YouTube Music Downloader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              DEFAULT: '#8B5CF6',
+              50: '#EDE9FE',
+              100: '#DDD6FE',
+              200: '#C4B5FD',
+              300: '#A78BFA',
+              400: '#8B5CF6',
+              500: '#7C3AED',
+              600: '#6D28D9',
+              700: '#5B21B6',
+              800: '#4C1D95',
+              900: '#3C1773',
+              950: '#2E1065'
+            },
+            dark: {
+              DEFAULT: '#1E1E2E',
+              50: '#2D2D44',
+              100: '#252536',
+              200: '#1E1E2E',
+              300: '#181825',
+              400: '#11111B',
+              500: '#0D0D14',
+              900: '#07070A'
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'bounce-slow': 'bounce 2s infinite',
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      font-family: 'Outfit', sans-serif;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #1E1E2E;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #6D28D9;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #5B21B6;
+    }
+    
+    .neo-btn {
+      box-shadow: 0 4px 0 0 rgba(93, 40, 184, 0.6);
+      transition: all 0.2s ease;
+    }
+    
+    .neo-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 0 rgba(93, 40, 184, 0.6);
+    }
+    
+    .glass-card {
+      background: rgba(30, 30, 46, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(123, 74, 226, 0.1);
+    }
+    
+    .animate-gradient {
+      background: linear-gradient(45deg, #6D28D9, #DB2777, #6D28D9);
+      background-size: 200% 200%;
+      animation: gradient 8s ease infinite;
+    }
+    
+    @keyframes gradient {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="bg-dark-300 text-gray-200 min-h-screen flex flex-col">
+  <div class="grid place-items-center min-h-screen">
+    <div class="w-full max-w-5xl px-4 md:px-6 py-6 md:py-8 mx-auto">
+      <!-- Header -->
+      <header class="mb-8 text-center relative">
+        <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-300 via-primary-400 to-primary-300 mb-3 tracking-tight">
+          YTMDL
+        </h1>
+        <p class="text-gray-400 md:text-lg max-w-3xl mx-auto">
+          Download high-quality MP3 files from YouTube with custom tags and artwork
+        </p>
+      </header>
+
+      <!-- Main Content -->
+      <main class="glass-card rounded-2xl shadow-2xl overflow-hidden mb-8 transition-all duration-300">
+        <!-- URL Input -->
+        <div class="p-5 md:p-6 border-b border-dark-50">
+          <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-grow">
+              <div class="relative">
+                <label for="videoUrl" class="block text-sm font-medium text-gray-300 mb-2">
+                  <i class="fas fa-link mr-2 text-primary-400"></i>YouTube URL
+                </label>
+                <input 
+                  type="text" 
+                  id="videoUrl" 
+                  class="w-full px-4 py-3 bg-dark-50 border border-dark-100 focus:border-primary-500 rounded-xl focus:ring-2 focus:ring-primary-500 focus:ring-opacity-50 transition text-white placeholder-gray-500"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  autocomplete="off"
+                  autofocus
+                >
+                <div class="absolute right-3 top-11 text-gray-400 text-sm hidden" id="urlTypeIndicator">
+                  <span id="videoIndicator" class="px-2 py-1 rounded-full bg-primary-900 text-primary-300 text-xs">
+                    <i class="fas fa-video"></i> Video
+                  </span>
+                  <span id="playlistIndicator" class="px-2 py-1 rounded-full bg-pink-900 text-pink-300 text-xs hidden">
+                    <i class="fas fa-list"></i> Playlist
+                  </span>
+                </div>
+              </div>
+              <div id="fetchError" class="mt-2 text-red-400 text-sm hidden"></div>
+            </div>
+            <div class="flex-shrink-0 flex items-end">
+              <button 
+                id="fetchBtn" 
+                class="neo-btn w-full md:w-auto bg-primary-600 hover:bg-primary-500 text-white font-medium py-3 px-8 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-200"
+              >
+                <i class="fas fa-search mr-2"></i>Fetch
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="h-[433px] flex justify-center items-center text-center hidden">
+          <div class="flex flex-col justify-center items-center relative">
+            <div class="w-16 h-16 rounded-full bg-primary-600/20 grid place-items-center relative">
+              <div class="absolute inset-0 rounded-full bg-primary-600/20 animate-ping"></div>
+              <i class="fas fa-compact-disc animate-spin text-primary-400 text-2xl relative z-10"></i>
+            </div>
+            <p class="text-gray-400 mt-5">Fetching video information...</p>
+          </div>
+        </div>
+
+        <!-- Single Video Metadata -->
+        <div id="singleVideoSection" class="hidden">
+          <div class="flex flex-col md:flex-row">
+            <!-- Thumbnail and Cover Art -->
+            <div class="md:w-1/3 p-5 md:p-6 border-b md:border-r md:border-b-0 border-dark-50">
+              <div class="aspect-video md:aspect-square overflow-hidden rounded-xl bg-dark-50 mb-5 relative group shadow-md">
+                <img id="videoThumbnail" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="" alt="Video Thumbnail">
+                <div class="absolute inset-0 bg-gradient-to-t from-dark-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-4">
+                  <button id="useAsCoverBtn" class="bg-primary-600 text-white hover:bg-primary-500 font-medium px-4 py-2 rounded-lg text-sm shadow-lg transition transform translate-y-2 group-hover:translate-y-0">
+                    <i class="fas fa-image mr-1"></i> Use as Cover Art
+                  </button>
+                </div>
+              </div>
+              <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-300 mb-2">
+                  <i class="fas fa-palette mr-2 text-primary-400"></i>Custom Cover Art
+                </label>
+                <div class="flex items-center space-x-2">
+                  <label class="flex-grow cursor-pointer bg-dark-50 hover:bg-dark-100 text-gray-300 rounded-lg py-2.5 px-4 text-center border border-dark-100 transition group">
+                    <i class="fas fa-upload mr-2 text-primary-400 group-hover:text-primary-300"></i>
+                    <span>Choose Image File</span>
+                    <input type="file" id="coverInput" class="hidden" accept="image/*">
+                  </label>
+                  <button id="clearCoverBtn" class="bg-dark-50 hover:bg-dark-100 text-gray-400 hover:text-gray-200 rounded-lg p-2.5 transition border border-dark-100">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div id="coverPreview" class="hidden mt-4 relative">
+                  <div class="relative rounded-lg overflow-hidden border border-dark-100 shadow-md">
+                    <img id="coverImage" class="max-h-40 w-full object-cover" src="" alt="Cover Preview">
+                    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-dark-900 p-2">
+                      <span id="coverFilename" class="block text-xs text-gray-400 truncate"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metadata Form -->
+            <div class="md:w-2/3 p-5 md:p-6">
+              <div class="space-y-4">
+                <div>
+                  <label for="videoTitle" class="block text-sm font-medium text-gray-300 mb-2">
+                    <i class="fas fa-heading mr-2 text-primary-400"></i>Title
+                  </label>
+                  <input type="text" id="videoTitle" class="w-full px-4 py-3 bg-dark-50 border border-dark-100 focus:border-primary-500 rounded-xl focus:ring-2 focus:ring-primary-500 focus:ring-opacity-50 transition text-white">
+                </div>
+                <div>
+                  <label for="videoArtist" class="block text-sm font-medium text-gray-300 mb-2">
+                    <i class="fas fa-user mr-2 text-primary-400"></i>Artist
+                  </label>
+                  <input type="text" id="videoArtist" class="w-full px-4 py-3 bg-dark-50 border border-dark-100 focus:border-primary-500 rounded-xl focus:ring-2 focus:ring-primary-500 focus:ring-opacity-50 transition text-white">
+                </div>
+                <div>
+                  <label for="videoAlbum" class="block text-sm font-medium text-gray-300 mb-2">
+                    <i class="fas fa-compact-disc mr-2 text-primary-400"></i>Album
+                  </label>
+                  <input type="text" id="videoAlbum" class="w-full px-4 py-3 bg-dark-50 border border-dark-100 focus:border-primary-500 rounded-xl focus:ring-2 focus:ring-primary-500 focus:ring-opacity-50 transition text-white">
+                </div>
+              </div>
+
+              <div class="mt-8">
+                <button id="downloadSingleBtn" class="neo-btn w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl transition flex items-center justify-center text-lg">
+                  <i class="fas fa-download mr-3"></i>Download MP3
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Playlist Section -->
+        <div id="playlistSection" class="hidden">
+          <div class="p-5 md:p-6 border-b border-dark-50">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 class="text-xl font-semibold text-white flex items-center">
+                <span class="bg-pink-600 bg-opacity-20 text-pink-400 w-8 h-8 rounded-lg inline-flex items-center justify-center mr-3">
+                  <i class="fas fa-list"></i>
+                </span>
+                Playlist - <span id="playlistItemCount" class="text-primary-300">0</span> videos
+              </h2>
+              <div class="flex flex-row gap-2">
+                <button id="selectAllBtn" class="bg-primary-900 hover:bg-primary-800 text-primary-300 font-medium px-4 py-2 rounded-lg transition text-sm">
+                  <i class="fas fa-check-square mr-1"></i> Select All
+                </button>
+                <button id="deselectAllBtn" class="bg-dark-50 hover:bg-dark-100 text-gray-300 font-medium px-4 py-2 rounded-lg transition text-sm">
+                  <i class="fas fa-square mr-1"></i> Deselect All
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Common Tags -->
+          <div class="p-5 md:p-6 border-b border-dark-50 bg-dark-100">
+            <h3 class="text-sm font-medium text-gray-300 mb-4 flex items-center">
+              <span class="bg-primary-900 text-primary-400 w-6 h-6 rounded inline-flex items-center justify-center mr-2">
+                <i class="fas fa-tags text-xs"></i>
+              </span>
+              Common Tags (Applied to all selected videos)
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label for="commonArtist" class="block text-xs font-medium text-gray-400 mb-1.5">Artist</label>
+                <input type="text" id="commonArtist" class="w-full px-3 py-2 text-sm bg-dark-50 border border-dark-100 focus:border-primary-500 rounded-lg focus:ring-1 focus:ring-primary-500 focus:ring-opacity-50 transition text-white">
+              </div>
+              <div>
+                <label for="commonAlbum" class="block text-xs font-medium text-gray-400 mb-1.5">Album</label>
+                <input type="text" id="commonAlbum" class="w-full px-3 py-2 text-sm bg-dark-50 border border-dark-100 focus:border-primary-500 rounded-lg focus:ring-1 focus:ring-primary-500 focus:ring-opacity-50 transition text-white">
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-400 mb-1.5">Cover Art</label>
+                <div class="flex items-center space-x-2">
+                  <label class="flex-grow cursor-pointer bg-dark-50 hover:bg-dark-100 text-gray-300 rounded-lg py-2 px-3 text-center border border-dark-100 transition text-sm group">
+                    <i class="fas fa-upload mr-1 text-primary-400 group-hover:text-primary-300"></i>
+                    <span>Choose Image</span>
+                    <input type="file" id="playlistCoverInput" class="hidden" accept="image/*">
+                  </label>
+                  <button id="clearPlaylistCoverBtn" class="bg-dark-50 hover:bg-dark-100 text-gray-400 hover:text-gray-200 rounded-lg p-2 transition border border-dark-100">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div id="playlistCoverPreview" class="hidden mt-2 relative">
+                  <div class="flex items-center space-x-2">
+                    <img id="playlistCoverImage" class="h-8 w-8 object-cover rounded" src="" alt="Cover Preview">
+                    <span id="playlistCoverFilename" class="block text-xs text-gray-500 truncate"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Playlist Items -->
+          <div class="p-5 md:p-6">
+            <div id="playlistItems" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
+              <!-- Playlist items will be added here dynamically -->
+            </div>
+
+            <div class="mt-8">
+              <button id="downloadPlaylistBtn" class="neo-btn w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl transition flex items-center justify-center text-lg">
+                <i class="fas fa-download mr-3"></i>Download Selected Videos
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progressSection" class="hidden p-5 md:p-6">
+          <h3 class="text-xl font-semibold text-white mb-6 flex items-center">
+            <div class="w-8 h-8 rounded-lg bg-primary-900 flex items-center justify-center mr-3 animate-pulse">
+              <i class="fas fa-spinner fa-spin text-primary-400"></i>
+            </div>
+            Download Progress
+          </h3>
+
+          <!-- Overall Progress (for playlist) -->
+          <div id="overallProgressContainer" class="mb-8 hidden">
+            <div class="flex justify-between mb-2">
+              <span class="text-sm font-medium text-gray-300">Overall Progress</span>
+              <span id="overallProgressText" class="text-sm font-medium text-primary-300">0%</span>
+            </div>
+            <div class="w-full bg-dark-50 rounded-full h-3 overflow-hidden">
+              <div id="overallProgressBar" class="bg-gradient-to-r from-primary-600 to-primary-400 h-3 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+            <div class="text-xs text-gray-500 mt-2 flex justify-between">
+              <div>
+                Processing: <span id="currentItemCount" class="text-primary-300">0</span> of <span id="totalItemCount" class="text-primary-300">0</span> videos
+              </div>
+              <div id="estimatedTimeContainer" class="hidden">
+                <i class="far fa-clock mr-1"></i> <span id="estimatedTimeText">--:--</span> remaining
+              </div>
+            </div>
+          </div>
+
+          <!-- Current Item Progress -->
+          <div id="currentProgressContainer" class="bg-dark-100 rounded-xl p-4 md:p-5">
+            <div class="flex justify-between mb-3">
+              <div class="flex-1 mr-4">
+                <h4 id="currentItemTitle" class="text-sm font-medium text-white mb-1 truncate">Processing...</h4>
+                <p id="currentProgressStatus" class="text-xs text-gray-400">Starting download...</p>
+              </div>
+              <div class="text-right">
+                <span id="currentProgressText" class="text-lg font-semibold text-primary-300">0%</span>
+              </div>
+            </div>
+            <div class="w-full bg-dark-50 rounded-full h-2.5 overflow-hidden">
+              <div id="currentProgressBar" class="bg-gradient-to-r from-primary-600 via-primary-500 to-primary-300 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Status Messages -->
+          <div class="mt-6">
+            <h4 class="text-sm font-medium text-gray-300 mb-2 flex items-center">
+              <i class="fas fa-info-circle text-primary-400 mr-2"></i> Status Log
+            </h4>
+            <div id="statusMessages" class="bg-dark-100 rounded-xl p-3 max-h-40 overflow-y-auto text-sm">
+              <!-- Status messages will be added here dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Completed Section -->
+        <div id="completedSection" class="hidden p-5 md:p-8 text-center">
+          <div class="inline-block animate-bounce-slow mb-4">
+            <div class="w-16 h-16 rounded-full bg-green-900 bg-opacity-20 text-green-400 grid place-items-center mx-auto">
+              <i class="fas fa-check-circle text-3xl"></i>
+            </div>
+          </div>
+          <h3 class="text-2xl font-semibold text-white mb-2">Download Complete!</h3>
+          <p id="completedMessage" class="text-gray-400 mb-8 max-w-md mx-auto">Your file has been successfully downloaded.</p>
+          <button id="startNewBtn" class="neo-btn bg-primary-600 hover:bg-primary-500 text-white font-medium py-3 px-8 rounded-xl transition focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-dark-200">
+            <i class="fas fa-plus mr-2"></i>Start New Download
+          </button>
+        </div>
+      </main>
+
+      <!-- Footer -->
+      <footer class="text-center text-gray-500 text-sm p-4">
+        <p class="mb-1">
+          <span class="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent font-medium">YTMDL</span> &copy; 2025 - Created by <a href="#" class="text-primary-400 hover:text-primary-300 transition">KaedeYure</a>
+        </p>
+        <p class="text-xs text-gray-600">Download YouTube videos as high-quality MP3 files with custom metadata</p>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Templates -->
+  <template id="playlistItemTemplate">
+    <div class="playlist-item bg-dark-100 hover:bg-dark-50 border border-dark-100 rounded-lg p-3 flex items-start gap-3 hover:shadow-md transition">
+      <div class="flex-shrink-0 pt-1">
+        <div class="relative">
+          <input type="checkbox" class="item-checkbox w-4 h-4 text-primary-600 bg-dark-300 border-dark-100 rounded focus:ring-primary-500 focus:ring-opacity-50">
+        </div>
+      </div>
+      <div class="flex-shrink-0">
+        <div class="relative overflow-hidden rounded-md w-16 h-10 bg-dark-50">
+          <img class="item-thumbnail w-full h-full object-cover" src="" alt="Thumbnail">
+          <div class="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-transparent opacity-60"></div>
+        </div>
+      </div>
+      <div class="flex-grow min-w-0">
+        <h4 class="item-title text-sm font-medium text-white truncate"></h4>
+        <p class="text-xs text-gray-500 mt-0.5">YouTube Video</p>
+        <input type="hidden" class="item-url">
+      </div>
+    </div>
+  </template>
+
+  <template id="statusMessageTemplate">
+    <div class="status-message py-2 border-b border-dark-50 flex items-start gap-2">
+      <div class="flex-shrink-0 text-gray-400"></div>
+      <div class="flex-grow"></div>
+      <div class="flex-shrink-0 text-xs text-gray-500"></div>
+    </div>
+  </template>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Socket.io connection
+      const socket = io();
+      let socketId = null;
+      let currentDownload = { 
+        isPlaylist: false,
+        items: [],
+        playlistItems: [],
+        coverFile: null,
+        coverUrl: null
+      };
+      
+      // DOM Elements
+      const elements = {
+        videoUrl: document.getElementById('videoUrl'),
+        fetchBtn: document.getElementById('fetchBtn'),
+        fetchError: document.getElementById('fetchError'),
+        loadingIndicator: document.getElementById('loadingIndicator'),
+        singleVideoSection: document.getElementById('singleVideoSection'),
+        playlistSection: document.getElementById('playlistSection'),
+        progressSection: document.getElementById('progressSection'),
+        completedSection: document.getElementById('completedSection'),
+        urlTypeIndicator: document.getElementById('urlTypeIndicator'),
+        videoIndicator: document.getElementById('videoIndicator'),
+        playlistIndicator: document.getElementById('playlistIndicator'),
+        
+        // Single video elements
+        videoThumbnail: document.getElementById('videoThumbnail'),
+        videoTitle: document.getElementById('videoTitle'),
+        videoArtist: document.getElementById('videoArtist'),
+        videoAlbum: document.getElementById('videoAlbum'),
+        useAsCoverBtn: document.getElementById('useAsCoverBtn'),
+        coverInput: document.getElementById('coverInput'),
+        clearCoverBtn: document.getElementById('clearCoverBtn'),
+        coverPreview: document.getElementById('coverPreview'),
+        coverImage: document.getElementById('coverImage'),
+        coverFilename: document.getElementById('coverFilename'),
+        downloadSingleBtn: document.getElementById('downloadSingleBtn'),
+        
+        // Playlist elements
+        playlistItemCount: document.getElementById('playlistItemCount'),
+        playlistItems: document.getElementById('playlistItems'),
+        selectAllBtn: document.getElementById('selectAllBtn'),
+        deselectAllBtn: document.getElementById('deselectAllBtn'),
+        commonArtist: document.getElementById('commonArtist'),
+        commonAlbum: document.getElementById('commonAlbum'),
+        playlistCoverInput: document.getElementById('playlistCoverInput'),
+        clearPlaylistCoverBtn: document.getElementById('clearPlaylistCoverBtn'),
+        playlistCoverPreview: document.getElementById('playlistCoverPreview'),
+        playlistCoverImage: document.getElementById('playlistCoverImage'),
+        playlistCoverFilename: document.getElementById('playlistCoverFilename'),
+        downloadPlaylistBtn: document.getElementById('downloadPlaylistBtn'),
+        
+        // Progress elements
+        overallProgressContainer: document.getElementById('overallProgressContainer'),
+        overallProgressBar: document.getElementById('overallProgressBar'),
+        overallProgressText: document.getElementById('overallProgressText'),
+        currentItemCount: document.getElementById('currentItemCount'),
+        totalItemCount: document.getElementById('totalItemCount'),
+        estimatedTimeContainer: document.getElementById('estimatedTimeContainer'),
+        estimatedTimeText: document.getElementById('estimatedTimeText'),
+        currentProgressContainer: document.getElementById('currentProgressContainer'),
+        currentItemTitle: document.getElementById('currentItemTitle'),
+        currentProgressBar: document.getElementById('currentProgressBar'),
+        currentProgressText: document.getElementById('currentProgressText'),
+        currentProgressStatus: document.getElementById('currentProgressStatus'),
+        statusMessages: document.getElementById('statusMessages'),
+        
+        // Completed elements
+        completedMessage: document.getElementById('completedMessage'),
+        startNewBtn: document.getElementById('startNewBtn'),
+        
+        // Templates
+        playlistItemTemplate: document.getElementById('playlistItemTemplate'),
+        statusMessageTemplate: document.getElementById('statusMessageTemplate')
+      };
+      
+      // Socket connection event
+      socket.on('connect', () => {
+        socketId = socket.id;
+        console.log('Connected to server with ID:', socketId);
+      });
+      
+      // URL validation and indicator
+      elements.videoUrl.addEventListener('input', function() {
+        const url = this.value.trim();
+        
+        if (url.length > 10 && url.includes('youtube.com')) {
+          elements.urlTypeIndicator.classList.remove('hidden');
+          
+          if (url.includes('list=')) {
+            elements.videoIndicator.classList.add('hidden');
+            elements.playlistIndicator.classList.remove('hidden');
+          } else {
+            elements.videoIndicator.classList.remove('hidden');
+            elements.playlistIndicator.classList.add('hidden');
+          }
+        } else {
+          elements.urlTypeIndicator.classList.add('hidden');
+        }
+      });
+      
+      // Clear UI and reset to initial state
+      function resetUI() {
+        elements.videoUrl.value = '';
+        elements.fetchError.textContent = '';
+        elements.fetchError.classList.add('hidden');
+        elements.singleVideoSection.classList.add('hidden');
+        elements.playlistSection.classList.add('hidden');
+        elements.progressSection.classList.add('hidden');
+        elements.completedSection.classList.add('hidden');
+        elements.loadingIndicator.classList.add('hidden');
+        elements.urlTypeIndicator.classList.add('hidden');
+        elements.statusMessages.innerHTML = '';
+        
+        // Reset single video form
+        elements.videoTitle.value = '';
+        elements.videoArtist.value = '';
+        elements.videoAlbum.value = '';
+        elements.videoThumbnail.src = '';
+        elements.coverPreview.classList.add('hidden');
+        elements.coverImage.src = '';
+        elements.coverFilename.textContent = '';
+        elements.coverInput.value = ''; // Clear file input
+        
+        // Reset playlist form
+        elements.playlistItems.innerHTML = '';
+        elements.commonArtist.value = '';
+        elements.commonAlbum.value = '';
+        elements.playlistCoverPreview.classList.add('hidden');
+        elements.playlistCoverImage.src = '';
+        elements.playlistCoverFilename.textContent = '';
+        elements.playlistCoverInput.value = ''; // Clear file input
+        
+        // Reset download state with explicit cover reset
+        currentDownload = {
+          isPlaylist: false,
+          items: [],
+          playlistItems: [],
+          coverFile: null,
+          coverUrl: null  // Explicitly reset coverUrl
+        };
+      }
+      
+      // Handle fetch button click
+      elements.fetchBtn.addEventListener('click', async function() {
+        const url = elements.videoUrl.value.trim();
+        if (!url) {
+          showError('Please enter a YouTube URL');
+          return;
+        }
+        
+        elements.fetchError.classList.add('hidden');
+        elements.singleVideoSection.classList.add('hidden');
+        elements.playlistSection.classList.add('hidden');
+        elements.loadingIndicator.classList.remove('hidden');
+        
+        try {
+          const response = await fetch('/metadata', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url })
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch metadata');
+          }
+          
+          const data = await response.json();
+          elements.loadingIndicator.classList.add('hidden');
+          
+          // Process metadata
+          if (data.isPlaylist) {
+            // Handle playlist
+            currentDownload.isPlaylist = true;
+            currentDownload.items = data.items;
+            displayPlaylist(data.items);
+          } else {
+            // Handle single video
+            currentDownload.isPlaylist = false;
+            currentDownload.items = data.items;
+            displaySingleVideo(data.items[0]);
+          }
+        } catch (error) {
+          elements.loadingIndicator.classList.add('hidden');
+          showError(error.message || 'An error occurred');
+          console.error('Fetch error:', error);
+        }
+      });
+      
+      function showError(message) {
+        elements.fetchError.textContent = message;
+        elements.fetchError.classList.remove('hidden');
+        
+        // Shake the error message
+        elements.fetchError.classList.add('animate-bounce');
+        setTimeout(() => {
+          elements.fetchError.classList.remove('animate-bounce');
+        }, 1000);
+      }
+      
+      // Display single video metadata
+      function displaySingleVideo(item) {
+        elements.videoTitle.value = item.title || '';
+        elements.videoArtist.value = item.artist || '';
+        elements.videoAlbum.value = item.album || '';
+        elements.videoThumbnail.src = item.thumbnail || '';
+        currentDownload.coverUrl = item.thumbnail;
+        
+        elements.singleVideoSection.classList.remove('hidden');
+        
+        // Add animation
+        elements.singleVideoSection.classList.add('animate-fade-in');
+        setTimeout(() => {
+          elements.singleVideoSection.classList.remove('animate-fade-in');
+        }, 500);
+      }
+      
+      // Display playlist metadata
+      function displayPlaylist(items) {
+        elements.playlistItems.innerHTML = '';
+        elements.playlistItemCount.textContent = items.length;
+        
+        items.forEach(item => {
+          const template = elements.playlistItemTemplate.content.cloneNode(true);
+          const container = template.querySelector('.playlist-item');
+          const checkbox = template.querySelector('.item-checkbox');
+          const thumbnail = template.querySelector('.item-thumbnail');
+          const title = template.querySelector('.item-title');
+          const urlInput = template.querySelector('.item-url');
+          
+          checkbox.checked = true;
+          checkbox.dataset.title = item.title;
+          thumbnail.src = item.thumbnail || '';
+          title.textContent = item.title || '';
+          urlInput.value = item.url || '';
+          
+          elements.playlistItems.appendChild(template);
+        });
+        
+        elements.playlistSection.classList.remove('hidden');
+        
+        // Add staggered animation for playlist items
+        setTimeout(() => {
+          const items = document.querySelectorAll('.playlist-item');
+          items.forEach((item, index) => {
+            setTimeout(() => {
+              item.classList.add('animate-fade-in');
+            }, index * 50);
+          });
+        }, 100);
+      }
+      
+      // Cover image handling for single video
+      elements.useAsCoverBtn.addEventListener('click', function() {
+        if (elements.videoThumbnail.src) {
+          elements.coverImage.src = elements.videoThumbnail.src;
+          elements.coverFilename.textContent = 'Using video thumbnail';
+          elements.coverPreview.classList.remove('hidden');
+          currentDownload.coverFile = null;
+          currentDownload.coverUrl = elements.videoThumbnail.src;
+        }
+      });
+      
+      elements.coverInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const file = this.files[0];
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            elements.coverImage.src = e.target.result;
+            elements.coverFilename.textContent = file.name;
+            elements.coverPreview.classList.remove('hidden');
+            currentDownload.coverFile = file;
+            currentDownload.coverUrl = null;
+          };
+          
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      elements.clearCoverBtn.addEventListener('click', function() {
+        elements.coverInput.value = '';
+        elements.coverPreview.classList.add('hidden');
+        currentDownload.coverFile = null;
+        currentDownload.coverUrl = null;
+      });
+      
+      // Cover image handling for playlist
+      elements.playlistCoverInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const file = this.files[0];
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            elements.playlistCoverImage.src = e.target.result;
+            elements.playlistCoverFilename.textContent = file.name;
+            elements.playlistCoverPreview.classList.remove('hidden');
+            currentDownload.coverFile = file;
+            currentDownload.coverUrl = null;
+          };
+          
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      elements.clearPlaylistCoverBtn.addEventListener('click', function() {
+        elements.playlistCoverInput.value = '';
+        elements.playlistCoverPreview.classList.add('hidden');
+        currentDownload.coverFile = null;
+        currentDownload.coverUrl = null;
+      });
+      
+      // Select/deselect all playlist items
+      elements.selectAllBtn.addEventListener('click', function() {
+        document.querySelectorAll('.item-checkbox').forEach(checkbox => {
+          checkbox.checked = true;
+        });
+        
+        // Highlight the selected button, unhighlight the other
+        elements.selectAllBtn.classList.remove('bg-primary-900', 'hover:bg-primary-800', 'text-primary-300');
+        elements.selectAllBtn.classList.add('bg-primary-700', 'hover:bg-primary-600', 'text-white');
+        
+        elements.deselectAllBtn.classList.remove('bg-primary-700', 'hover:bg-primary-600', 'text-white');
+        elements.deselectAllBtn.classList.add('bg-dark-50', 'hover:bg-dark-100', 'text-gray-300');
+      });
+      
+      elements.deselectAllBtn.addEventListener('click', function() {
+        document.querySelectorAll('.item-checkbox').forEach(checkbox => {
+          checkbox.checked = false;
+        });
+        
+        // Highlight the selected button, unhighlight the other
+        elements.deselectAllBtn.classList.remove('bg-dark-50', 'hover:bg-dark-100', 'text-gray-300');
+        elements.deselectAllBtn.classList.add('bg-primary-700', 'hover:bg-primary-600', 'text-white');
+        
+        elements.selectAllBtn.classList.remove('bg-primary-700', 'hover:bg-primary-600', 'text-white');
+        elements.selectAllBtn.classList.add('bg-primary-900', 'hover:bg-primary-800', 'text-primary-300');
+      });
+      
+      // Download single video
+      elements.downloadSingleBtn.addEventListener('click', async function() {
+        if (currentDownload.items.length === 0) return;
+        
+        const item = currentDownload.items[0];
+        const title = elements.videoTitle.value || item.title;
+        const artist = elements.videoArtist.value || item.artist;
+        const album = elements.videoAlbum.value || item.album;
+        
+        startDownload({
+          url: item.url,
+          title,
+          artist,
+          album,
+          isPlaylist: false
+        });
+      });
+      
+      // Download playlist
+      elements.downloadPlaylistBtn.addEventListener('click', function() {
+        const selectedItems = [];
+        document.querySelectorAll('.item-checkbox:checked').forEach(checkbox => {
+          const container = checkbox.closest('.playlist-item');
+          const url = container.querySelector('.item-url').value;
+          const title = checkbox.dataset.title;
+          
+          selectedItems.push({ url, title });
+        });
+        
+        if (selectedItems.length === 0) {
+          showError('Please select at least one video to download');
+          return;
+        }
+        
+        const commonArtist = elements.commonArtist.value;
+        const commonAlbum = elements.commonAlbum.value;
+        
+        startDownload({
+          items: selectedItems,
+          artist: commonArtist,
+          album: commonAlbum,
+          isPlaylist: true
+        });
+      });
+      
+      // Start new download
+      elements.startNewBtn.addEventListener('click', resetUI);
+      
+      // Start download process
+      async function startDownload(options) {
+        elements.singleVideoSection.classList.add('hidden');
+        elements.playlistSection.classList.add('hidden');
+        elements.progressSection.classList.remove('hidden');
+        
+        // Reset progress UI
+        elements.currentProgressBar.style.width = '0%';
+        elements.currentProgressText.textContent = '0%';
+        elements.statusMessages.innerHTML = '';
+        
+        if (options.isPlaylist) {
+          elements.overallProgressContainer.classList.remove('hidden');
+          elements.overallProgressBar.style.width = '0%';
+          elements.overallProgressText.textContent = '0%';
+          elements.currentItemCount.textContent = '0';
+          elements.totalItemCount.textContent = options.items.length;
+          elements.currentItemTitle.textContent = 'Preparing...';
+          
+          // Show estimated time
+          elements.estimatedTimeContainer.classList.remove('hidden');
+        } else {
+          elements.overallProgressContainer.classList.add('hidden');
+          elements.estimatedTimeContainer.classList.add('hidden');
+          elements.currentItemTitle.textContent = options.title;
+        }
+        
+        addStatusMessage('info', 'Starting download process...');
+        
+        // Create form data for file upload
+        const formData = new FormData();
+        formData.append('socketId', socketId);
+        formData.append('isPlaylist', options.isPlaylist);
+        
+        if (options.isPlaylist) {
+          formData.append('items', JSON.stringify(options.items));
+          formData.append('artist', options.artist);
+          formData.append('album', options.album);
+        } else {
+          formData.append('url', options.url);
+          formData.append('title', options.title);
+          formData.append('artist', options.artist);
+          formData.append('album', options.album);
+        }
+        
+        if (currentDownload.coverFile) {
+          formData.append('cover', currentDownload.coverFile);
+        } else if (currentDownload.coverUrl) {
+          formData.append('coverUrl', currentDownload.coverUrl);
+        }
+        
+        try {
+          const response = await fetch('/download', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            throw new Error('Download request failed');
+          }
+          
+          // Response will be immediate, actual progress comes through socket
+          addStatusMessage('info', 'Download request sent successfully');
+          addStatusMessage('info', 'Waiting for server to process...');
+        } catch (error) {
+          addStatusMessage('error', `Error: ${error.message}`);
+          console.error('Download error:', error);
+        }
+      }
+      
+      // Add a status message to the log
+      function addStatusMessage(type, message) {
+        const template = elements.statusMessageTemplate.content.cloneNode(true);
+        const container = template.querySelector('.status-message');
+        const icon = template.querySelector('.flex-shrink-0');
+        const text = template.querySelector('.flex-grow');
+        const time = template.querySelector('div:last-child');
+        
+        // Add timestamp
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        time.textContent = timeStr;
+        
+        if (type === 'info') {
+          icon.innerHTML = '<i class="fas fa-info-circle text-blue-400"></i>';
+        } else if (type === 'success') {
+          icon.innerHTML = '<i class="fas fa-check-circle text-green-400"></i>';
+          container.classList.add('text-green-400');
+        } else if (type === 'error') {
+          icon.innerHTML = '<i class="fas fa-exclamation-circle text-red-400"></i>';
+          container.classList.add('text-red-400');
+        } else if (type === 'warning') {
+          icon.innerHTML = '<i class="fas fa-exclamation-triangle text-amber-400"></i>';
+          container.classList.add('text-amber-400');
+        }
+        
+        text.textContent = message;
+        elements.statusMessages.appendChild(container);
+        elements.statusMessages.scrollTop = elements.statusMessages.scrollHeight;
+      }
+      
+      // Calculate and display estimated time remaining
+      let downloadStartTime = 0;
+      function updateEstimatedTime(progress, total, current) {
+        if (progress <= 0 || !total || !current) {
+          elements.estimatedTimeText.textContent = '--:--';
+          return;
+        }
+        
+        if (downloadStartTime === 0) {
+          downloadStartTime = Date.now();
+          return;
+        }
+        
+        const elapsedMs = Date.now() - downloadStartTime;
+        const progressPercent = current / total;
+        if (progressPercent <= 0) return;
+        
+        // Calculate estimated total time based on elapsed time and progress
+        const estimatedTotalMs = elapsedMs / progressPercent;
+        const remainingMs = estimatedTotalMs - elapsedMs;
+        
+        if (remainingMs <= 0) {
+          elements.estimatedTimeText.textContent = 'Almost done';
+          return;
+        }
+        
+        // Format remaining time
+        const remainingMinutes = Math.floor(remainingMs / 60000);
+        const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+        elements.estimatedTimeText.textContent = `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+      }
+      
+      // Socket events for progress monitoring
+      socket.on('progress', function(data) {
+        console.log('Progress update:', data);
+        
+        switch (data.status) {
+          case 'start':
+            elements.totalItemCount.textContent = data.total;
+            addStatusMessage('info', `Starting to process ${data.total} videos`);
+            downloadStartTime = Date.now();
+            break;
+            
+          case 'downloading':
+            elements.currentItemTitle.textContent = data.title || 'Current item';
+            if (data.message) {
+              elements.currentProgressStatus.textContent = data.message;
+            } else {
+              elements.currentProgressStatus.textContent = `Downloading... ${Math.round(data.progress)}%`;
+            }
+            
+            // Smooth progress updates with requestAnimationFrame
+            if (!window.progressAnimationId) {
+              const animateProgress = () => {
+                const currentWidth = parseFloat(elements.currentProgressBar.style.width || '0');
+                const targetWidth = data.progress;
+                
+                if (Math.abs(currentWidth - targetWidth) < 0.5) {
+                  elements.currentProgressBar.style.width = `${targetWidth}%`;
+                  elements.currentProgressText.textContent = `${Math.round(targetWidth)}%`;
+                  window.progressAnimationId = null;
+                } else {
+                  // Smooth transition to target value
+                  const newWidth = currentWidth + (targetWidth - currentWidth) * 0.2;
+                  elements.currentProgressBar.style.width = `${newWidth}%`;
+                  elements.currentProgressText.textContent = `${Math.round(newWidth)}%`;
+                  window.progressAnimationId = requestAnimationFrame(animateProgress);
+                }
+              };
+              
+              window.progressAnimationId = requestAnimationFrame(animateProgress);
+            } else {
+              // Just update the target if animation is already running
+              window.targetProgress = data.progress;
+            }
+            break;
+            
+          case 'processing':
+            elements.currentProgressStatus.textContent = data.message || 'Processing audio...';
+            
+            // Smooth transition for processing stage
+            const animateProcessingProgress = () => {
+              const currentWidth = parseFloat(elements.currentProgressBar.style.width || '0');
+              const targetWidth = data.progress || 100;
+              
+              if (Math.abs(currentWidth - targetWidth) < 0.5) {
+                elements.currentProgressBar.style.width = `${targetWidth}%`;
+                elements.currentProgressText.textContent = `${Math.round(targetWidth)}%`;
+              } else {
+                const newWidth = currentWidth + (targetWidth - currentWidth) * 0.2;
+                elements.currentProgressBar.style.width = `${newWidth}%`;
+                elements.currentProgressText.textContent = `${Math.round(newWidth)}%`;
+                requestAnimationFrame(animateProcessingProgress);
+              }
+            };
+            
+            requestAnimationFrame(animateProcessingProgress);
+            break;
+            
+          case 'fileComplete':
+            const progress = (data.current / data.total) * 100;
+            elements.currentItemCount.textContent = data.current;
+            
+            // Update estimated time
+            updateEstimatedTime(progress, data.total, data.current);
+            
+            // Smoothly animate the overall progress bar
+            const animateOverallProgress = () => {
+              const currentWidth = parseFloat(elements.overallProgressBar.style.width || '0');
+              const targetWidth = progress;
+              
+              if (Math.abs(currentWidth - targetWidth) < 0.5) {
+                elements.overallProgressBar.style.width = `${targetWidth}%`;
+                elements.overallProgressText.textContent = `${Math.round(targetWidth)}%`;
+              } else {
+                // Smooth transition to target value
+                const newWidth = currentWidth + (targetWidth - currentWidth) * 0.3;
+                elements.overallProgressBar.style.width = `${newWidth}%`;
+                elements.overallProgressText.textContent = `${Math.round(newWidth)}%`;
+                requestAnimationFrame(animateOverallProgress);
+              }
+            };
+            
+            requestAnimationFrame(animateOverallProgress);
+            addStatusMessage('success', `Completed ${data.current} of ${data.total} videos`);
+            break;
+            
+          case 'error':
+            addStatusMessage('error', `Error processing "${data.title}": ${data.error}`);
+            break;
+        }
+      });
+      
+      // Handle file download chunks
+      let downloadedChunks = [];
+      let downloadingFilename = '';
+      let downloadProgress = 0;
+      
+      socket.on('downloadStart', function(data) {
+        downloadedChunks = [];
+        downloadingFilename = data.filename;
+        downloadProgress = 0;
+        addStatusMessage('info', `Starting file transfer: ${data.filename}`);
+        
+        elements.currentProgressStatus.textContent = 'Preparing download...';
+        elements.currentProgressBar.style.width = '0%';
+        elements.currentProgressText.textContent = '0%';
+      });
+      
+      socket.on('downloadChunk', function(data, ack) {
+        // Convert binary data to ArrayBuffer
+        const chunk = new Uint8Array(data.chunk).buffer;
+        downloadedChunks.push(chunk);
+        downloadProgress = data.progress;
+        
+        elements.currentProgressStatus.textContent = `Transferring: ${Math.round(downloadProgress)}%`;
+        elements.currentProgressBar.style.width = `${downloadProgress}%`;
+        elements.currentProgressText.textContent = `${Math.round(downloadProgress)}%`;
+        
+        // Acknowledge receipt to server
+        ack();
+      });
+      
+      socket.on('downloadComplete', function(data) {
+        addStatusMessage('success', `File transfer complete: ${data.filename}`);
+        elements.currentProgressStatus.textContent = 'Download complete!';
+        
+        // Combine all chunks into a single blob
+        const blob = new Blob(downloadedChunks);
+        const url = URL.createObjectURL(blob);
+        
+        // Create a download link and click it
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadingFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+        downloadedChunks = [];
+        
+        // Show cool completion animation
+        elements.currentProgressBar.classList.add('animate-gradient');
+        
+        // Show completed section
+        setTimeout(() => {
+          elements.progressSection.classList.add('hidden');
+          elements.completedSection.classList.remove('hidden');
+          elements.currentProgressBar.classList.remove('animate-gradient');
+          
+          if (data.filename === 'playlist.zip') {
+            elements.completedMessage.textContent = 'Your playlist has been successfully downloaded as a ZIP file.';
+          } else {
+            elements.completedMessage.textContent = 'Your MP3 file has been successfully downloaded.';
+          }
+          
+          // Reset for next download
+          downloadStartTime = 0;
+        }, 1500);
+      });
+      
+      socket.on('error', function(data) {
+        addStatusMessage('error', `Error: ${data.message}`);
+        elements.currentProgressStatus.textContent = 'Error occurred';
+        elements.currentProgressBar.classList.remove('bg-gradient-to-r', 'from-primary-600', 'via-primary-500', 'to-primary-300');
+        elements.currentProgressBar.classList.add('bg-red-600');
+      });
+      
+      // Add Enter key support for URL input
+      elements.videoUrl.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          elements.fetchBtn.click();
+        }
+      });
+      
+      // Add tooltips for better UX
+      const addTooltip = (element, text) => {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'absolute z-50 px-2 py-1 text-xs bg-dark-400 text-gray-200 rounded shadow-lg whitespace-nowrap transition-opacity duration-300 opacity-0 pointer-events-none';
+        tooltip.textContent = text;
+        document.body.appendChild(tooltip);
+        
+        element.addEventListener('mouseenter', () => {
+          const rect = element.getBoundingClientRect();
+          tooltip.style.top = `${rect.bottom + 5}px`;
+          tooltip.style.left = `${rect.left + rect.width / 2 - tooltip.offsetWidth / 2}px`;
+          tooltip.classList.remove('opacity-0');
+          tooltip.classList.add('opacity-100');
+        });
+        
+        element.addEventListener('mouseleave', () => {
+          tooltip.classList.remove('opacity-100');
+          tooltip.classList.add('opacity-0');
+        });
+      };
+      
+      // Add tooltips to important buttons and elements
+      addTooltip(elements.fetchBtn, 'Fetch video metadata');
+      addTooltip(elements.useAsCoverBtn, 'Use video thumbnail as cover art');
+      addTooltip(elements.clearCoverBtn, 'Clear selected cover image');
+      addTooltip(elements.selectAllBtn, 'Select all videos in playlist');
+      addTooltip(elements.deselectAllBtn, 'Deselect all videos in playlist');
+      
+      // Show welcome message
+      const showWelcomeMessage = () => {
+        const welcomeMessage = document.createElement('div');
+        welcomeMessage.className = 'fixed top-10 right-4 bg-dark-100 rounded-lg p-4 shadow-lg max-w-xs transform transition-transform duration-500 z-50 border-l-4 border-primary-500';
+        welcomeMessage.innerHTML = `
+          <div class="flex items-start">
+            <div class="flex-shrink-0 mt-0.5">
+              <i class="fas fa-info-circle text-primary-400 text-lg"></i>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-white">Welcome to YTMDL</h3>
+              <div class="mt-1 text-xs text-gray-400">
+                <p>Paste a YouTube URL above to get started with downloading high-quality MP3s.</p>
+              </div>
+              <div class="mt-2">
+                <button class="text-xs text-primary-400 hover:text-primary-300 focus:outline-none">Got it</button>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(welcomeMessage);
+        
+        // Slight delay before showing
+        setTimeout(() => {
+          welcomeMessage.classList.add('animate-bounce-slow');
+        }, 500);
+        
+        // Add event listener to dismiss
+        welcomeMessage.querySelector('button').addEventListener('click', () => {
+          welcomeMessage.classList.add('transform', 'translate-x-full', 'opacity-0');
+          setTimeout(() => {
+            welcomeMessage.remove();
+          }, 500);
+        });
+        
+        // Auto dismiss after 8 seconds
+        setTimeout(() => {
+          welcomeMessage.classList.add('transform', 'translate-x-full', 'opacity-0');
+          setTimeout(() => {
+            welcomeMessage.remove();
+          }, 500);
+        }, 8000);
+      };
+      
+      // Show welcome message after a short delay
+      setTimeout(showWelcomeMessage, 1000);
+    });
+  </script>
+</body>
+</html>

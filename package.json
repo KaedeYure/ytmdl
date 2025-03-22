@@ -1,0 +1,47 @@
+{
+  "name": "ytmdl",
+  "version": "1.0.0",
+  "description": "Download high-quality MP3 files from YouTube with custom tags and artwork",
+  "keywords": [
+    "youtube",
+    "yt2mp3"
+  ],
+  "homepage": "https://github.com/KaedeYure/ytmdl#readme",
+  "bugs": {
+    "url": "https://github.com/KaedeYure/ytmdl/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KaedeYure/ytmdl.git"
+  },
+  "license": "MIT",
+  "author": "Kaede Yure",
+  "type": "commonjs",
+  "main": "app.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "start": "node lib/server.js",
+    "install": "node installer.js",
+    "uninstall": "node uninstaller.js",
+    "update": "node updater.js"
+  },
+  "dependencies": {
+    "@distube/ytpl": "^1.2.1",
+    "chalk": "^5.4.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "ffmpeg-static": "^5.2.0",
+    "multer": "^1.4.5-lts.1",
+    "node-id3": "^0.2.8",
+    "open": "^10.1.0",
+    "sharp": "^0.33.5",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1",
+    "pkg": "^5.8.1"
+  }
+}

@@ -20,14 +20,37 @@ const YTDLP_RELEASES = {
   android: 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp'
 };
 
-// Required npm packages
+// Required npm packages (Sharp will be handled separately for Android)
 const NPM_PACKAGES = [
   'express', 'cors', 'node-id3', 'multer', 'uuid', 
-  '@distube/ytpl', 'socket.io', 'archiver', 'sharp',
+  '@distube/ytpl', 'socket.io', 'archiver',
   'open', 'chalk'
 ];
 
 const FFMPEG_STATIC_PACKAGE = 'ffmpeg-static';
+
+// Function to detect if running in Termux
+const isRunningOnTermux = () => {
+  // Check for Termux-specific environment variable
+  if (process.env.TERMUX_VERSION) {
+    return true;
+  }
+  
+  // Check for Termux-specific path prefix
+  if (process.env.PREFIX && process.env.PREFIX.includes('com.termux')) {
+    return true;
+  }
+  
+  // Check if we can access a Termux-specific directory
+  try {
+    // This path exists only on Termux installations
+    const stats = fs.statSync('/data/data/com.termux/files/usr');
+    return stats.isDirectory();
+  } catch (e) {
+    // Path doesn't exist, so we're not on Termux
+    return false;
+  }
+};
 
 // Function to download files with progress reporting
 const download = async (url, destPath) => {
@@ -136,7 +159,7 @@ const checkCommand = async (command) => {
 };
 
 // Install required npm packages
-const installNpmPackages = async () => {
+const installNpmPackages = async (isTermux) => {
   console.log('Installing npm packages...');
   
   try {
@@ -152,6 +175,35 @@ const installNpmPackages = async () => {
     
     if (stdout) console.log(stdout);
     if (stderr) console.error(stderr);
+    
+    // Install Sharp separately with special flags for Termux/Android
+    if (isTermux) {
+      console.log('Installing Sharp with WASM support for Termux...');
+      const sharpCmd = 'npm install --cpu=wasm32 sharp';
+      console.log(`Running: ${sharpCmd}`);
+      
+      const { stdout: sharpStdout, stderr: sharpStderr } = await execAsync(sharpCmd, {
+        maxBuffer: 1024 * 1024 * 10
+      });
+      
+      if (sharpStdout) console.log(sharpStdout);
+      if (sharpStderr) console.error(sharpStderr);
+    } else {
+      // Install Sharp normally for other platforms
+      console.log('Installing Sharp...');
+      const sharpCmd = os.platform() === 'win32' 
+        ? 'npm.cmd install --save sharp' 
+        : 'npm install --save sharp';
+      
+      console.log(`Running: ${sharpCmd}`);
+      
+      const { stdout: sharpStdout, stderr: sharpStderr } = await execAsync(sharpCmd, {
+        maxBuffer: 1024 * 1024 * 10
+      });
+      
+      if (sharpStdout) console.log(sharpStdout);
+      if (sharpStderr) console.error(sharpStderr);
+    }
     
     console.log('Successfully installed npm packages');
     return true;
@@ -172,15 +224,14 @@ const install = async () => {
       mkdirSync(binDir, { recursive: true });
     }
     
-    // Detect platform
-    const platform = os.platform() === 'linux' && process.env.TERMUX_VERSION 
-      ? 'android' 
-      : os.platform();
+    // Detect platform and check for Termux
+    const termuxDetected = isRunningOnTermux();
+    const platform = termuxDetected ? 'android' : os.platform();
     
-    console.log(`Detected platform: ${platform}`);
+    console.log(`Detected platform: ${platform}${termuxDetected ? ' (Termux)' : ''}`);
     
     // Install npm packages
-    await installNpmPackages();
+    await installNpmPackages(termuxDetected);
     
     // Check and install yt-dlp if needed
     const ytdlpExists = await checkCommand(platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
@@ -211,6 +262,10 @@ const install = async () => {
     
     if (ffmpegExists) {
       console.log('ffmpeg is already installed and available in PATH');
+    } else if (termuxDetected) {
+      console.log('ffmpeg not found in PATH. For Termux, please install ffmpeg manually:');
+      console.log('  pkg install ffmpeg');
+      console.log('Skipping ffmpeg-static installation as it is not suitable for Termux.');
     } else {
       console.log('ffmpeg not found in PATH. Installing ffmpeg-static...');
       
@@ -265,6 +320,11 @@ fi`;
     
     console.log('\nInstallation completed successfully!');
     console.log(`You can now run the application with: ${platform === 'win32' ? 'ytmdl.bat' : './ytmdl'}`);
+    
+    if (termuxDetected && !ffmpegExists) {
+      console.log('\nIMPORTANT: You need to install ffmpeg in Termux before using the application:');
+      console.log('  pkg install ffmpeg');
+    }
     
   } catch (error) {
     console.error('Installation failed:', error);

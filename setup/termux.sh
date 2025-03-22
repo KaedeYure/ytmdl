@@ -157,6 +157,34 @@ else
     
     print_message "Cloning ytmdl repository..."
     git clone https://github.com/KaedeYure/ytmdl.git .
+fi
+
+# Check if clone was successful
+if [ $? -ne 0 ]; then
+    print_error "Failed to clone the repository!"
+    exit 1
+else
+    print_success "Repository cloned successfully!"
+fi
+
+# Install dependencies if package.json exists
+if [ -f "package.json" ]; then
+    print_message "Installing Node.js dependencies..."
+    npm install
+    
+    # Install sharp with WASM support for Android
+    print_message "Installing sharp with WASM support for Termux..."
+    npm install --cpu=wasm32 sharp
+    
+    if [ $? -ne 0 ]; then
+        print_error "Failed to install dependencies!"
+        exit 1
+    else
+        print_success "Dependencies installed successfully!"
+    fi
+else
+    print_message "No package.json found, skipping dependency installation."
+fi
 
 # Check if clone was successful
 if [ $? -ne 0 ]; then

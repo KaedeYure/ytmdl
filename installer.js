@@ -393,16 +393,16 @@ const createDesktopShortcut = async (platform, termuxDetected) => {
       try {
         const shortcutPath = path.join(desktopPath, `${appName}.lnk`);
         
-        // Use PowerShell to create a .lnk file
+        // Use PowerShell to create a .lnk file that directly targets Node.js
         const psScript = `
-$WshShell = New-Object -comObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")
-$Shortcut.TargetPath = "cmd.exe"
-$Shortcut.Arguments = "/c ytmdl"
-$Shortcut.WorkingDirectory = "${packageDir.replace(/\\/g, '\\\\')}"
-$Shortcut.Description = "YouTube Music Downloader"
-$Shortcut.IconLocation = "${process.execPath.replace(/\\/g, '\\\\')}"
-$Shortcut.Save()
+    $WshShell = New-Object -comObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")
+    $Shortcut.TargetPath = "${process.execPath.replace(/\\/g, '\\\\')}"
+    $Shortcut.Arguments = "${path.join(packageDir, 'ytmdl.js').replace(/\\/g, '\\\\')}"
+    $Shortcut.WorkingDirectory = "${packageDir.replace(/\\/g, '\\\\')}"
+    $Shortcut.Description = "YouTube Music Downloader"
+    $Shortcut.IconLocation = "${process.execPath.replace(/\\/g, '\\\\')}"
+    $Shortcut.Save()
         `;
         
         const psScriptPath = path.join(os.tmpdir(), 'create_ytmdl_shortcut.ps1');

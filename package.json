@@ -25,7 +25,7 @@
     "start": "node lib/server.js",
     "setup": "node installer.js",
     "uninstall": "node uninstaller.js",
-    "update": "git pull",
+    "update": "git reset --hard HEAD && git pull",
     "reinstall": "[ \"$OSTYPE\" = \"msys\" ] || [ \"$OS\" = \"Windows_NT\" ] || command -v powershell >/dev/null 2>&1 && { powershell -Command \"Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; iwr -useb https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/win.ps1 | iex\"; } || { command -v termux-info >/dev/null 2>&1 && { curl -sSL https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/termux.sh | bash; } || { curl -sSL https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/linux.sh | bash; }; }"
   },
   "dependencies": {
@@ -43,5 +43,8 @@
   "devDependencies": {
     "archiver": "^7.0.1",
     "pkg": "^5.8.1"
+  },
+  "bin": {
+    "ytmdl": "ytmdl.js"
   }
 }

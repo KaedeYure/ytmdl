@@ -36,7 +36,15 @@ install_package() {
         print_success "$package_name is already installed: $($version_cmd)"
     else
         print_message "Installing $package_name..."
-        pkg install -y "$package_name"
+        
+        # Use DEBIAN_FRONTEND=noninteractive to avoid interactive prompts
+        DEBIAN_FRONTEND=noninteractive apt install -y "$package_name"
+        
+        # For Git specifically, you may want to add this condition
+        if [ "$package_name" = "git" ]; then
+            # Force yes to all prompts for Git installation
+            yes | apt install -y git
+        fi
         
         if ! command -v "$package_cmd" &> /dev/null; then
             print_error "$package_name installation failed!"
@@ -101,36 +109,17 @@ main() {
     print_message "Setting up Termux storage access..."
     termux-setup-storage
     
-    # Update package lists first
-    print_message "Updating package lists..."
-    pkg update -y
+    apt update -y && apt upgrade -y
     
     # Install essential packages
     print_message "Installing essential packages..."
-    pkg install -y coreutils nano wget curl proot
+    apt install -y coreutils nano wget curl proot
     
-    # Install git with specific error handling
-    print_message "Installing git..."
-    if command -v git &> /dev/null; then
-        print_success "git is already installed: $(git --version)"
-    else
-        pkg install -y git
-        sleep 2
-        if ! command -v git &> /dev/null; then
-            print_error "git installation failed! Trying alternate method..."
-            apt update && apt install -y git
-            if ! command -v git &> /dev/null; then
-                print_error "git installation failed again! Please install git manually."
-                exit 1
-            fi
-        fi
-        print_success "git installed successfully: $(git --version)"
-    fi
-    
-    # Install other required packages
+    # Install required packages using our function
+    install_package "git" "git" "git --version" || exit 1
     install_package "nodejs" "node" "node --version" || exit 1
     install_package "npm" "npm" "npm --version" || exit 1
-    install_package "python" "python" "python --version" || exit 1
+    install_package "python3" "python3" "python3 --version" || exit 1
     install_package "ffmpeg" "ffmpeg" "ffmpeg -version | head -n 1" || exit 1
     
     # Repository setup
@@ -139,13 +128,7 @@ main() {
     # Install dependencies if package.json exists
     if [ -f "package.json" ]; then
         print_message "Installing Node.js dependencies..."
-        npm install
-        
-        # Try running setup if it exists
-        if grep -q "setup" package.json; then
-            print_message "Running setup script..."
-            npm run setup
-        fi
+        npm run setup
         
         # Install sharp with WASM support for Android
         print_message "Installing sharp with WASM support for Termux..."
@@ -153,13 +136,7 @@ main() {
         
         if [ $? -ne 0 ]; then
             print_error "Failed to install dependencies!"
-            print_message "Trying alternative installation method..."
-            npm install --no-optional
-            
-            if [ $? -ne 0 ]; then
-                print_error "Dependencies installation failed!"
-                exit 1
-            fi
+            exit 1
         else
             print_success "Dependencies installed successfully!"
         fi
@@ -176,12 +153,12 @@ main() {
     echo "- Git installed: $(git --version)"
     echo "- Node.js installed: $(node --version)"
     echo "- npm installed: $(npm --version)"
-    echo "- Python installed: $(python --version)"
+    echo "- Python 3 installed: $(python3 --version)"
     echo "- ffmpeg installed: $(ffmpeg -version | head -n 1)"
     echo "- Repository location: $HOME/ytmdl"
     echo ""
     echo -e "${BLUE}Next steps:${RESET}"
-    echo "Run the app using: ytmdl"
+    echo "Run the app using ytmdl"
 }
 
 # Run the main function

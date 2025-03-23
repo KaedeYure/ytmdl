@@ -150,8 +150,7 @@ main() {
     echo "- Repository location: $HOME/ytmdl"
     echo ""
     echo -e "${BLUE}Next steps:${RESET}"
-    echo "1. Navigate to the ytmdl directory: cd ~/ytmdl"
-    echo "2. Run the application: node index.js"
+    echo "Run the app using ytmdl"
 }
 
 # Run the main function

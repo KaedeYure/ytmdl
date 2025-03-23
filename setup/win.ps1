@@ -448,8 +448,7 @@ function Main {
     Write-Host "- Repository location: $repoPath"
     
     Write-Host "`nNext steps:" -ForegroundColor Cyan
-    Write-Host "1. Navigate to the ytmdl directory: cd $repoPath"
-    Write-Host "2. Run the application: node index.js"
+    Write-Host "Run the app using ytmdl"
     Write-Host "`nNote: If you open a new terminal window, some paths may need to be refreshed." -ForegroundColor Yellow
 }
 

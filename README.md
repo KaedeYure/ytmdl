@@ -53,3 +53,8 @@ Created by [KaedeYure](https://github.com/KaedeYure)
 ## License
 
 MIT License
+
+## Attribution
+While this project is licensed under the MIT License, if you use this software, 
+I kindly request that you include a reference to "Kaede Yure" in your documentation, 
+about page, or credits section. This is not a legal requirement, but a courtesy request.

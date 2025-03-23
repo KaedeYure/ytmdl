@@ -327,180 +327,6 @@ child.on('exit', (code) => {
   }
 };
 
-// Function to create desktop shortcut
-const createDesktopShortcut = async (platform, termuxDetected) => {
-  console.log('Creating desktop shortcut...');
-  
-  try {
-    // Get the current package directory
-    const packageDir = path.resolve(__dirname);
-    const packageJsonPath = path.join(packageDir, 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    const appName = packageJson.name || 'YTMDL';
-    
-    // Path to desktop folder
-    let desktopPath;
-    
-    if (termuxDetected) {
-      // For Termux/Android, create in the home directory or shared directory
-      desktopPath = process.env.HOME || '/data/data/com.termux/files/home';
-      
-      // Try to find the shared storage if available
-      try {
-        const { stdout } = await execAsync('termux-setup-storage');
-        // Check if shared storage is available
-        if (fs.existsSync(path.join(desktopPath, 'storage', 'shared'))) {
-          desktopPath = path.join(desktopPath, 'storage', 'shared');
-          console.log(`Using shared storage: ${desktopPath}`);
-        } else {
-          console.log(`Using home directory: ${desktopPath}`);
-        }
-      } catch (e) {
-        // Termux storage setup failed or not available
-        console.log('Termux shared storage not available, using home directory.');
-      }
-    } else if (platform === 'win32') {
-      // Windows desktop path
-      desktopPath = path.join(os.homedir(), 'Desktop');
-    } else if (platform === 'darwin') {
-      // macOS desktop path
-      desktopPath = path.join(os.homedir(), 'Desktop');
-    } else {
-      // Linux desktop path
-      desktopPath = path.join(os.homedir(), 'Desktop');
-      
-      // Check if XDG_DESKTOP_DIR is defined
-      try {
-        const { stdout } = await execAsync('xdg-user-dir DESKTOP');
-        if (stdout && stdout.trim()) {
-          desktopPath = stdout.trim();
-        }
-      } catch (e) {
-        // XDG not available, use default
-      }
-    }
-    
-    // Ensure the desktop directory exists
-    if (!fs.existsSync(desktopPath)) {
-      console.log(`Desktop directory not found: ${desktopPath}`);
-      console.log('Skipping desktop shortcut creation.');
-      return false;
-    }
-    
-    // Create shortcut
-    if (platform === 'win32') {
-      // Windows shortcut (.lnk)
-      try {
-        const shortcutPath = path.join(desktopPath, `${appName}.lnk`);
-        
-        // Use PowerShell to create a .lnk file that directly targets Node.js
-        const psScript = `
-    $WshShell = New-Object -comObject WScript.Shell
-    $Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")
-    $Shortcut.TargetPath = "${process.execPath.replace(/\\/g, '\\\\')}"
-    $Shortcut.Arguments = "${path.join(packageDir, 'ytmdl.js').replace(/\\/g, '\\\\')}"
-    $Shortcut.WorkingDirectory = "${packageDir.replace(/\\/g, '\\\\')}"
-    $Shortcut.Description = "YouTube Music Downloader"
-    $Shortcut.IconLocation = "${process.execPath.replace(/\\/g, '\\\\')}"
-    $Shortcut.Save()
-        `;
-        
-        const psScriptPath = path.join(os.tmpdir(), 'create_ytmdl_shortcut.ps1');
-        fs.writeFileSync(psScriptPath, psScript);
-        
-        await execAsync(`powershell -ExecutionPolicy Bypass -File "${psScriptPath}"`);
-        fs.unlinkSync(psScriptPath);
-        
-        console.log(`Desktop shortcut created: ${shortcutPath}`);
-        return true;
-      } catch (error) {
-        console.error('Failed to create Windows shortcut:', error.message);
-        return false;
-      }
-    } else if (platform === 'darwin') {
-      // macOS shortcut (.command file)
-      try {
-        const shortcutPath = path.join(desktopPath, `${appName}.command`);
-        const shortcutContent = `#!/bin/bash
-ytmdl
-`;
-        fs.writeFileSync(shortcutPath, shortcutContent);
-        await makeExecutable(shortcutPath);
-        
-        console.log(`Desktop shortcut created: ${shortcutPath}`);
-        return true;
-      } catch (error) {
-        console.error('Failed to create macOS shortcut:', error.message);
-        return false;
-      }
-    } else if (termuxDetected) {
-      // Termux/Android shortcut
-      try {
-        // For Termux, create a shell script in the home or shared directory
-        const shortcutPath = path.join(desktopPath, `${appName}.sh`);
-        const shortcutContent = `#!/bin/bash
-ytmdl
-`;
-        fs.writeFileSync(shortcutPath, shortcutContent);
-        await makeExecutable(shortcutPath);
-        
-        console.log(`Shortcut created: ${shortcutPath}`);
-        console.log('On Android, you may need to create a home screen shortcut manually, pointing to this script.');
-        
-        // Try to create a desktop file in shared storage if available
-        if (desktopPath.includes('shared')) {
-          try {
-            const desktopFilePath = path.join(desktopPath, `${appName}.desktop`);
-            const desktopFileContent = `[Desktop Entry]
-Type=Application
-Name=${appName}
-Exec=termux-open-url "intent://com.termux/#Intent;scheme=termux;package=com.termux;S.EXTRA_ARGUMENTS=-c%20'${shortcutPath}';end"
-Icon=terminal
-Terminal=true
-`;
-            fs.writeFileSync(desktopFilePath, desktopFileContent);
-            console.log(`Desktop file created: ${desktopFilePath}`);
-            console.log('You may need to install a file manager or launcher that can use .desktop files.');
-          } catch (e) {
-            console.error('Failed to create Android desktop file:', e.message);
-          }
-        }
-        
-        return true;
-      } catch (error) {
-        console.error('Failed to create Termux shortcut:', error.message);
-        return false;
-      }
-    } else {
-      // Linux shortcut (.desktop file)
-      try {
-        const shortcutPath = path.join(desktopPath, `${appName}.desktop`);
-        const shortcutContent = `[Desktop Entry]
-Version=1.0
-Type=Application
-Name=${appName}
-Comment=YouTube Music Downloader
-Exec=ytmdl
-Terminal=true
-Categories=AudioVideo;Audio;
-`;
-        fs.writeFileSync(shortcutPath, shortcutContent);
-        await makeExecutable(shortcutPath);
-        
-        console.log(`Desktop shortcut created: ${shortcutPath}`);
-        return true;
-      } catch (error) {
-        console.error('Failed to create Linux shortcut:', error.message);
-        return false;
-      }
-    }
-  } catch (error) {
-    console.error('Error creating desktop shortcut:', error.message);
-    console.log('The application will still work without a desktop shortcut.');
-    return false;
-  }
-};
-
 // Main installation function
 const install = async () => {
   try {
@@ -522,10 +348,23 @@ const install = async () => {
     await installNpmPackages(termuxDetected);
     
     // Check and install yt-dlp if needed
-    const ytdlpExists = await checkCommand(platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+    let ytdlpExists = false;
+    const ytdlpCheck = await checkCommand(platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+    if (!ytdlpCheck) {
+      const ytdlpPath = path.join(
+        binDir,
+        platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
+      );
+      if (existsSync(ytdlpPath)) {
+        console.log(`yt-dlp found in bin directory: ${ytdlpPath}`);
+        ytdlpExists = true;
+      } else {
+        ytdlpExists = false;
+      }
+    };
     
     if (ytdlpExists) {
-      console.log('yt-dlp is already installed and available in PATH');
+      console.log('yt-dlp is already installed');
     } else {
       console.log('Installing yt-dlp...');
       const ytdlpUrl = YTDLP_RELEASES[platform];
@@ -546,14 +385,30 @@ const install = async () => {
     }
     
     // Check and install ffmpeg if needed
-    const ffmpegExists = await checkCommand(platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+    let ffmpegExists = await checkCommand(platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+
+    if (!ffmpegExists) {
+      try {
+        const ffmpegStatic = require('ffmpeg-static');
+        if (ffmpegStatic && existsSync(ffmpegStatic)) {
+          console.log(`ffmpeg found via ffmpeg-static at: ${ffmpegStatic}`);
+          ffmpegExists = true;
+        } else if (platform === 'win32') {
+          const ffmpegPath = path.join(__dirname, 'node_modules', 'ffmpeg-static', 'ffmpeg.exe');
+          if (existsSync(ffmpegPath)) {
+            console.log(`ffmpeg found at: ${ffmpegPath}`);
+            ffmpegExists = true;
+          }
+        }
+      } catch (error) {
+        console.log('ffmpeg-static not found, will attempt installation');
+      }
+    }
     
     if (ffmpegExists) {
       console.log('ffmpeg is already installed and available in PATH');
     } else if (termuxDetected) {
-      console.log('ffmpeg not found in PATH. For Termux, please install ffmpeg manually:');
-      console.log('  pkg install ffmpeg');
-      console.log('Skipping ffmpeg-static installation as it is not suitable for Termux.');
+      console.log("ffmpeg should already be installed. Skipping installation...");
     } else {
       console.log('ffmpeg not found in PATH. Installing ffmpeg-static...');
       
@@ -581,9 +436,6 @@ const install = async () => {
     // Create global command for ytmdl
     const globalCmdCreated = await createGlobalCommand(platform);
     
-    // Create desktop shortcut
-    const shortcutCreated = await createDesktopShortcut(platform, termuxDetected);
-    
     console.log('\nInstallation completed successfully!');
     if (globalCmdCreated) {
       console.log('You can now run the application from anywhere with these commands:');
@@ -593,13 +445,6 @@ const install = async () => {
       console.log('You can run the application from the installation directory with:');
       console.log('  npm start          - Start the application');
       console.log('  npm run <script>   - Run a specific script');
-    }
-    
-    if (shortcutCreated) {
-      console.log('\nA desktop shortcut has been created for easy access.');
-      if (termuxDetected) {
-        console.log('On Android, you may need to use a file manager to access the shortcut file.');
-      }
     }
   } catch (error) {
     console.error('Installation failed:', error);

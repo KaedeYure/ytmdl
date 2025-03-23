@@ -5,7 +5,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const os = require('os');
 const https = require('https');
-const { createWriteStream, existsSync, mkdirSync } = require('fs');
+const { createWriteStream, existsSync, mkdirSync, writeFileSync } = require('fs');
 const { promisify } = require('util');
 const readline = require('readline');
 const { update } = require('./updater');
@@ -213,6 +213,295 @@ const installNpmPackages = async (isTermux) => {
   }
 };
 
+// Create a global command for ytmdl
+const createGlobalCommand = async (platform) => {
+  console.log('Creating global ytmdl command...');
+  
+  try {
+    // Get the current package directory
+    const packageDir = path.resolve(__dirname);
+    
+    // Create the bin script content
+    let binScriptContent;
+    let binScriptPath;
+    let binScriptName;
+    
+    if (platform === 'win32') {
+      // Windows JS file for global command
+      binScriptName = 'ytmdl.js';
+      binScriptPath = path.join(packageDir, binScriptName);
+      binScriptContent = `#!/usr/bin/env node
+const { spawn } = require('child_process');
+const path = require('path');
+
+// Get the YTMDL installation directory
+const ytmdlDir = path.resolve('${packageDir.replace(/\\/g, '\\\\')}');
+// Change to the YTMDL directory
+process.chdir(ytmdlDir);
+
+// Parse arguments
+const args = process.argv.slice(2);
+const command = args.length > 0 ? args[0] : 'start';
+const scriptArgs = args.length > 1 ? args.slice(1) : [];
+
+// Run the appropriate npm script
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const child = spawn(npmCmd, ['run', command, ...scriptArgs], { 
+  stdio: 'inherit',
+  shell: true 
+});
+
+child.on('exit', (code) => {
+  process.exit(code);
+});
+`;
+    } else {
+      // Unix shell script for global command
+      binScriptName = 'ytmdl';
+      binScriptPath = path.join(packageDir, binScriptName);
+      binScriptContent = `#!/usr/bin/env node
+const { spawn } = require('child_process');
+const path = require('path');
+
+// Get the YTMDL installation directory
+const ytmdlDir = path.resolve('${packageDir}');
+// Change to the YTMDL directory
+process.chdir(ytmdlDir);
+
+// Parse arguments
+const args = process.argv.slice(2);
+const command = args.length > 0 ? args[0] : 'start';
+const scriptArgs = args.length > 1 ? args.slice(1) : [];
+
+// Run the appropriate npm script
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const child = spawn(npmCmd, ['run', command, ...scriptArgs], { 
+  stdio: 'inherit',
+  shell: true 
+});
+
+child.on('exit', (code) => {
+  process.exit(code);
+});
+`;
+    }
+    
+    // Write the bin script
+    fs.writeFileSync(binScriptPath, binScriptContent);
+    if (platform !== 'win32') {
+      await makeExecutable(binScriptPath);
+    }
+    
+    // Update package.json to include the bin entry
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    
+    // Add or update the bin field in package.json
+    packageJson.bin = {
+      ytmdl: binScriptName
+    };
+    
+    // Write back the updated package.json
+    fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+    
+    // Install the package globally to create the global command
+    console.log('Installing ytmdl command globally...');
+    
+    const installGlobalCmd = platform === 'win32' 
+      ? 'npm.cmd install -g .' 
+      : 'npm install -g .';
+    
+    const { stdout, stderr } = await execAsync(installGlobalCmd, {
+      cwd: packageDir,
+      maxBuffer: 1024 * 1024 * 10
+    });
+    
+    if (stdout) console.log(stdout);
+    if (stderr) console.error(stderr);
+    
+    console.log('Global ytmdl command created successfully!');
+    return true;
+  } catch (error) {
+    console.error('Failed to create global command:', error.message);
+    console.log('The application will still work, but you need to use "npm run" commands from the installation directory.');
+    return false;
+  }
+};
+
+// Function to create desktop shortcut
+const createDesktopShortcut = async (platform, termuxDetected) => {
+  console.log('Creating desktop shortcut...');
+  
+  try {
+    // Get the current package directory
+    const packageDir = path.resolve(__dirname);
+    const packageJsonPath = path.join(packageDir, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const appName = packageJson.name || 'YTMDL';
+    
+    // Path to desktop folder
+    let desktopPath;
+    
+    if (termuxDetected) {
+      // For Termux/Android, create in the home directory or shared directory
+      desktopPath = process.env.HOME || '/data/data/com.termux/files/home';
+      
+      // Try to find the shared storage if available
+      try {
+        const { stdout } = await execAsync('termux-setup-storage');
+        // Check if shared storage is available
+        if (fs.existsSync(path.join(desktopPath, 'storage', 'shared'))) {
+          desktopPath = path.join(desktopPath, 'storage', 'shared');
+          console.log(`Using shared storage: ${desktopPath}`);
+        } else {
+          console.log(`Using home directory: ${desktopPath}`);
+        }
+      } catch (e) {
+        // Termux storage setup failed or not available
+        console.log('Termux shared storage not available, using home directory.');
+      }
+    } else if (platform === 'win32') {
+      // Windows desktop path
+      desktopPath = path.join(os.homedir(), 'Desktop');
+    } else if (platform === 'darwin') {
+      // macOS desktop path
+      desktopPath = path.join(os.homedir(), 'Desktop');
+    } else {
+      // Linux desktop path
+      desktopPath = path.join(os.homedir(), 'Desktop');
+      
+      // Check if XDG_DESKTOP_DIR is defined
+      try {
+        const { stdout } = await execAsync('xdg-user-dir DESKTOP');
+        if (stdout && stdout.trim()) {
+          desktopPath = stdout.trim();
+        }
+      } catch (e) {
+        // XDG not available, use default
+      }
+    }
+    
+    // Ensure the desktop directory exists
+    if (!fs.existsSync(desktopPath)) {
+      console.log(`Desktop directory not found: ${desktopPath}`);
+      console.log('Skipping desktop shortcut creation.');
+      return false;
+    }
+    
+    // Create shortcut
+    if (platform === 'win32') {
+      // Windows shortcut (.lnk)
+      try {
+        const shortcutPath = path.join(desktopPath, `${appName}.lnk`);
+        
+        // Use PowerShell to create a .lnk file
+        const psScript = `
+$WshShell = New-Object -comObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("${shortcutPath.replace(/\\/g, '\\\\')}")
+$Shortcut.TargetPath = "cmd.exe"
+$Shortcut.Arguments = "/c ytmdl"
+$Shortcut.WorkingDirectory = "${packageDir.replace(/\\/g, '\\\\')}"
+$Shortcut.Description = "YouTube Music Downloader"
+$Shortcut.IconLocation = "${process.execPath.replace(/\\/g, '\\\\')}"
+$Shortcut.Save()
+        `;
+        
+        const psScriptPath = path.join(os.tmpdir(), 'create_ytmdl_shortcut.ps1');
+        fs.writeFileSync(psScriptPath, psScript);
+        
+        await execAsync(`powershell -ExecutionPolicy Bypass -File "${psScriptPath}"`);
+        fs.unlinkSync(psScriptPath);
+        
+        console.log(`Desktop shortcut created: ${shortcutPath}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to create Windows shortcut:', error.message);
+        return false;
+      }
+    } else if (platform === 'darwin') {
+      // macOS shortcut (.command file)
+      try {
+        const shortcutPath = path.join(desktopPath, `${appName}.command`);
+        const shortcutContent = `#!/bin/bash
+ytmdl
+`;
+        fs.writeFileSync(shortcutPath, shortcutContent);
+        await makeExecutable(shortcutPath);
+        
+        console.log(`Desktop shortcut created: ${shortcutPath}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to create macOS shortcut:', error.message);
+        return false;
+      }
+    } else if (termuxDetected) {
+      // Termux/Android shortcut
+      try {
+        // For Termux, create a shell script in the home or shared directory
+        const shortcutPath = path.join(desktopPath, `${appName}.sh`);
+        const shortcutContent = `#!/bin/bash
+ytmdl
+`;
+        fs.writeFileSync(shortcutPath, shortcutContent);
+        await makeExecutable(shortcutPath);
+        
+        console.log(`Shortcut created: ${shortcutPath}`);
+        console.log('On Android, you may need to create a home screen shortcut manually, pointing to this script.');
+        
+        // Try to create a desktop file in shared storage if available
+        if (desktopPath.includes('shared')) {
+          try {
+            const desktopFilePath = path.join(desktopPath, `${appName}.desktop`);
+            const desktopFileContent = `[Desktop Entry]
+Type=Application
+Name=${appName}
+Exec=termux-open-url "intent://com.termux/#Intent;scheme=termux;package=com.termux;S.EXTRA_ARGUMENTS=-c%20'${shortcutPath}';end"
+Icon=terminal
+Terminal=true
+`;
+            fs.writeFileSync(desktopFilePath, desktopFileContent);
+            console.log(`Desktop file created: ${desktopFilePath}`);
+            console.log('You may need to install a file manager or launcher that can use .desktop files.');
+          } catch (e) {
+            console.error('Failed to create Android desktop file:', e.message);
+          }
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Failed to create Termux shortcut:', error.message);
+        return false;
+      }
+    } else {
+      // Linux shortcut (.desktop file)
+      try {
+        const shortcutPath = path.join(desktopPath, `${appName}.desktop`);
+        const shortcutContent = `[Desktop Entry]
+Version=1.0
+Type=Application
+Name=${appName}
+Comment=YouTube Music Downloader
+Exec=ytmdl
+Terminal=true
+Categories=AudioVideo;Audio;
+`;
+        fs.writeFileSync(shortcutPath, shortcutContent);
+        await makeExecutable(shortcutPath);
+        
+        console.log(`Desktop shortcut created: ${shortcutPath}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to create Linux shortcut:', error.message);
+        return false;
+      }
+    }
+  } catch (error) {
+    console.error('Error creating desktop shortcut:', error.message);
+    console.log('The application will still work without a desktop shortcut.');
+    return false;
+  }
+};
+
 // Main installation function
 const install = async () => {
   try {
@@ -290,42 +579,29 @@ const install = async () => {
       }
     }
     
-    // Create platform-specific command shortcut
-    if (platform === 'win32') {
-      // Windows batch file
-      const batchPath = path.join(__dirname, 'ytmdl.bat');
-      const batchContent = `@echo off
-cd /d "%~dp0"
-if "%1"=="" (
-  npm start
-) else (
-  npm run %*
-)`;
-      fs.writeFileSync(batchPath, batchContent);
-      console.log(`Created command shortcut: ${batchPath}`);
-    } else {
-      // Unix shell script
-      const shellPath = path.join(__dirname, 'ytmdl');
-      const shellContent = `#!/bin/bash
-cd "$(dirname "$0")"
-if [ -z "$1" ]; then
-  npm start
-else
-  npm run "$@"
-fi`;
-      fs.writeFileSync(shellPath, shellContent);
-      await makeExecutable(shellPath);
-      console.log(`Created command shortcut: ${shellPath}`);
-    }
+    // Create global command for ytmdl
+    const globalCmdCreated = await createGlobalCommand(platform);
+    
+    // Create desktop shortcut
+    const shortcutCreated = await createDesktopShortcut(platform, termuxDetected);
     
     console.log('\nInstallation completed successfully!');
-    console.log(`You can now run the application with: ${platform === 'win32' ? 'ytmdl.bat' : './ytmdl'}`);
-    
-    if (termuxDetected && !ffmpegExists) {
-      console.log('\nIMPORTANT: You need to install ffmpeg in Termux before using the application:');
-      console.log('  pkg install ffmpeg');
+    if (globalCmdCreated) {
+      console.log('You can now run the application from anywhere with these commands:');
+      console.log('  ytmdl              - Start the application');
+      console.log('  ytmdl <script>     - Run a specific script (e.g., ytmdl update)');
+    } else {
+      console.log('You can run the application from the installation directory with:');
+      console.log('  npm start          - Start the application');
+      console.log('  npm run <script>   - Run a specific script');
     }
     
+    if (shortcutCreated) {
+      console.log('\nA desktop shortcut has been created for easy access.');
+      if (termuxDetected) {
+        console.log('On Android, you may need to use a file manager to access the shortcut file.');
+      }
+    }
   } catch (error) {
     console.error('Installation failed:', error);
     process.exit(1);

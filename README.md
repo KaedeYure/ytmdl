@@ -19,7 +19,7 @@ Choose the appropriate installation method for your operating system:
 ### For Windows users:
 
 ```batch
-curl -o setup-ytmdl.bat https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/win.bat
+powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/win.ps1' -OutFile 'setup-ytmdl.ps1'; & './setup-ytmdl.ps1'"
 ```
 
 Then right-click on `setup-ytmdl.bat` and select "Run as administrator".

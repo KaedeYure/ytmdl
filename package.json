@@ -23,7 +23,7 @@
   },
   "scripts": {
     "start": "node lib/server.js",
-    "install": "node installer.js",
+    "setup": "node installer.js",
     "uninstall": "node uninstaller.js",
     "update": "node updater.js"
   },

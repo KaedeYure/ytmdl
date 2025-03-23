@@ -1,352 +1,356 @@
 #!/bin/bash
+# Linux YTMDL Setup Script
+# This script sets up your Linux environment for YTMDL
 
-# Set colors for console output
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Terminal colors
+BLUE="\033[1;34m"
+GREEN="\033[1;32m"
+RED="\033[1;31m"
+YELLOW="\033[1;33m"
+WHITE="\033[1;37m"
+RESET="\033[0m"
 
 # Print colorful messages
 print_message() {
-    echo -e "${BLUE}==>${NC} $1"
+    echo -e "${BLUE}==>${RESET} ${WHITE}$1${RESET}"
 }
 
 print_success() {
-    echo -e "${GREEN}==>${NC} $1"
+    echo -e "${GREEN}==>${RESET} ${WHITE}$1${RESET}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}==>${RESET} ${WHITE}$1${RESET}"
 }
 
 print_error() {
-    echo -e "${RED}==>${NC} $1"
+    echo -e "${RED}==>${RESET} ${WHITE}$1${RESET}"
 }
 
-# Function to detect the package manager
+# Detect package manager
 detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
         PKG_INSTALL="apt install -y"
-        PKG_UPDATE="apt update && apt upgrade -y"
+        PKG_UPDATE="apt update"
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="dnf install -y"
-        PKG_UPDATE="dnf update -y"
+        PKG_UPDATE="dnf check-update"
     elif command -v yum &> /dev/null; then
         PKG_MANAGER="yum"
         PKG_INSTALL="yum install -y"
-        PKG_UPDATE="yum update -y"
+        PKG_UPDATE="yum check-update"
     elif command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
         PKG_INSTALL="pacman -S --noconfirm"
-        PKG_UPDATE="pacman -Syu --noconfirm"
+        PKG_UPDATE="pacman -Sy"
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
         PKG_INSTALL="zypper install -y"
-        PKG_UPDATE="zypper update -y"
+        PKG_UPDATE="zypper refresh"
     else
-        print_error "No supported package manager found (apt, dnf, yum, pacman, zypper)"
+        print_error "No supported package manager found."
+        print_error "This script supports apt, dnf, yum, pacman, and zypper."
         exit 1
     fi
     print_success "Detected package manager: $PKG_MANAGER"
 }
 
-# Check if the script is run as root
-check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        print_error "This script must be run as root"
-        echo "Please run with sudo: sudo $0"
-        exit 1
-    fi
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" &> /dev/null
 }
 
-# Function to install necessary packages
-install_dependencies() {
-    print_message "Updating package lists..."
-    eval "$PKG_UPDATE"
-
-    print_message "Installing dependencies..."
-    case $PKG_MANAGER in
-        apt)
-            $PKG_INSTALL git nodejs npm python3 python3-pip ffmpeg curl
-            ;;
-        dnf|yum)
-            $PKG_INSTALL git nodejs npm python3 python3-pip ffmpeg curl
-            ;;
-        pacman)
-            $PKG_INSTALL git nodejs npm python python-pip ffmpeg curl
-            ;;
-        zypper)
-            $PKG_INSTALL git nodejs npm python3 python3-pip ffmpeg curl
-            ;;
-    esac
-
-    if [ $? -ne 0 ]; then
-        print_error "Failed to install dependencies"
-        exit 1
-    else
-        print_success "Dependencies installed successfully"
-    fi
-}
-
-# Function to check for Node.js
-check_nodejs() {
-    print_message "Checking for Node.js..."
-    if command -v node &> /dev/null; then
-        NODE_VERSION=$(node --version)
-        print_success "Node.js is already installed: $NODE_VERSION"
-    else
-        print_message "Installing Node.js..."
-        if [ "$PKG_MANAGER" == "apt" ]; then
-            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-            $PKG_INSTALL nodejs
+# Function to install a package if not already installed
+install_package() {
+    local package_name="$1"
+    local package_cmd="$2"
+    local version_cmd="$3"
+    
+    if command_exists "$package_cmd"; then
+        if [ -z "$version_cmd" ]; then
+            print_success "$package_name is already installed"
         else
-            eval "$PKG_INSTALL nodejs npm"
+            version=$($version_cmd)
+            print_success "$package_name is already installed: $version"
         fi
+        return 0
+    else
+        if [ "$package_name" = "Python 3" ] || [ "$package_name" = "ffmpeg" ] || [ "$package_name" = "pip" ]; then
+            read -p "Would you like to install $package_name? (y/n) [y]: " install_choice
+            install_choice=${install_choice:-y}
+            if [[ $install_choice != "y" && $install_choice != "Y" ]]; then
+                print_warning "$package_name installation skipped."
+                return 1
+            fi
+        fi
+
+        print_message "Installing $package_name..."
         
-        if command -v node &> /dev/null; then
-            NODE_VERSION=$(node --version)
-            print_success "Node.js installed successfully: $NODE_VERSION"
+        # Special case for pip
+        if [ "$package_name" = "pip" ]; then
+            if [ "$PKG_MANAGER" = "apt" ]; then
+                sudo $PKG_INSTALL python3-pip
+            elif [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
+                sudo $PKG_INSTALL python3-pip
+            elif [ "$PKG_MANAGER" = "pacman" ]; then
+                sudo $PKG_INSTALL python-pip
+            elif [ "$PKG_MANAGER" = "zypper" ]; then
+                sudo $PKG_INSTALL python3-pip
+            else
+                # Fallback to installing pip using get-pip.py
+                print_message "Using alternative method to install pip..."
+                curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+                python3 get-pip.py --user
+                rm get-pip.py
+            fi
         else
-            print_error "Failed to install Node.js"
-            exit 1
-        fi
-    fi
-}
-
-# Function to check for Git
-check_git() {
-    print_message "Checking for Git..."
-    if command -v git &> /dev/null; then
-        GIT_VERSION=$(git --version)
-        print_success "Git is already installed: $GIT_VERSION"
-    else
-        print_message "Installing Git..."
-        eval "$PKG_INSTALL git"
-        
-        if command -v git &> /dev/null; then
-            GIT_VERSION=$(git --version)
-            print_success "Git installed successfully: $GIT_VERSION"
-        else
-            print_error "Failed to install Git"
-            exit 1
-        fi
-    fi
-}
-
-# Function to check for Python
-check_python() {
-    print_message "Checking for Python 3..."
-    if command -v python3 &> /dev/null; then
-        PYTHON_VERSION=$(python3 --version)
-        print_success "Python 3 is already installed: $PYTHON_VERSION"
-    else
-        print_message "Installing Python 3..."
-        case $PKG_MANAGER in
-            apt|dnf|yum|zypper)
-                eval "$PKG_INSTALL python3 python3-pip"
-                ;;
-            pacman)
-                eval "$PKG_INSTALL python python-pip"
-                ;;
-        esac
-        
-        if command -v python3 &> /dev/null; then
-            PYTHON_VERSION=$(python3 --version)
-            print_success "Python 3 installed successfully: $PYTHON_VERSION"
-        else
-            print_error "Failed to install Python 3"
-            exit 1
-        fi
-    fi
-}
-
-# Function to check for FFmpeg
-check_ffmpeg() {
-    print_message "Checking for FFmpeg..."
-    if command -v ffmpeg &> /dev/null; then
-        FFMPEG_VERSION=$(ffmpeg -version | head -n 1)
-        print_success "FFmpeg is already installed: $FFMPEG_VERSION"
-    else
-        print_message "Installing FFmpeg..."
-        eval "$PKG_INSTALL ffmpeg"
-        
-        if command -v ffmpeg &> /dev/null; then
-            FFMPEG_VERSION=$(ffmpeg -version | head -n 1)
-            print_success "FFmpeg installed successfully: $FFMPEG_VERSION"
-        else
-            print_error "Failed to install FFmpeg"
-            exit 1
-        fi
-    fi
-}
-
-# Function to create ytmdl directory and clone repository
-setup_repository() {
-    print_message "Setting up ytmdl..."
-    
-    # Get the user who executed sudo
-    if [ -n "$SUDO_USER" ]; then
-        USER_HOME=$(eval echo ~$SUDO_USER)
-    else
-        USER_HOME=$HOME
-    fi
-    
-    YTMDL_DIR="$USER_HOME/ytmdl"
-    
-    if [ -d "$YTMDL_DIR" ]; then
-        print_message "The ytmdl directory already exists."
-        read -p "Do you want to overwrite it? (y/n): " OVERWRITE
-        if [[ "$OVERWRITE" != "y" && "$OVERWRITE" != "Y" ]]; then
-            print_message "Skipping repository clone."
-            return
-        else
-            print_message "Removing existing directory..."
-            rm -rf "$YTMDL_DIR"
-        fi
-    fi
-    
-    print_message "Creating ytmdl directory in $USER_HOME..."
-    mkdir -p "$YTMDL_DIR"
-    
-    # Make sure the directory is owned by the actual user, not root
-    if [ -n "$SUDO_USER" ]; then
-        chown -R $SUDO_USER:$(id -gn $SUDO_USER) "$YTMDL_DIR"
-    fi
-    
-    print_message "Cloning ytmdl repository..."
-    # Use the actual user to clone the repository
-    if [ -n "$SUDO_USER" ]; then
-        su - $SUDO_USER -c "cd $YTMDL_DIR && git clone https://github.com/KaedeYure/ytmdl.git ."
-    else
-        cd "$YTMDL_DIR" && git clone https://github.com/KaedeYure/ytmdl.git .
-    fi
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to clone the repository"
-        exit 1
-    else
-        print_success "Repository cloned successfully to $YTMDL_DIR"
-    fi
-    
-    # Install dependencies
-    if [ -f "$YTMDL_DIR/package.json" ]; then
-        print_message "Installing Node.js dependencies..."
-        if [ -n "$SUDO_USER" ]; then
-            su - $SUDO_USER -c "cd $YTMDL_DIR && npm install"
-        else
-            cd "$YTMDL_DIR" && npm install
+            sudo $PKG_INSTALL $package_name
         fi
         
         if [ $? -ne 0 ]; then
-            print_error "Failed to install dependencies"
-            exit 1
-        else
-            print_success "Dependencies installed successfully"
+            print_error "$package_name installation failed!"
+            return 1
         fi
-    else
-        print_message "No package.json found, skipping dependency installation."
-    fi
-    
-    # Create startup script
-    SCRIPT_CONTENT="#!/bin/bash
-cd \$(dirname \"\$0\")
-if [ -z \"\$1\" ]; then
-  npm start
-else
-  npm run \"\$@\"
-fi"
-    
-    echo "$SCRIPT_CONTENT" > "$YTMDL_DIR/ytmdl"
-    chmod +x "$YTMDL_DIR/ytmdl"
-    
-    # Create desktop shortcut
-    DESKTOP_FILE="[Desktop Entry]
-Name=YouTube Music Downloader
-Comment=Download music from YouTube
-Exec=$YTMDL_DIR/ytmdl
-Icon=multimedia-player
-Terminal=false
-Type=Application
-Categories=Audio;Video;Network;"
-    
-    if [ -n "$SUDO_USER" ]; then
-        DESKTOP_DIR="$(eval echo ~$SUDO_USER)/.local/share/applications"
-        mkdir -p "$DESKTOP_DIR"
-        echo "$DESKTOP_FILE" > "$DESKTOP_DIR/ytmdl.desktop"
-        chown $SUDO_USER:$(id -gn $SUDO_USER) "$DESKTOP_DIR/ytmdl.desktop"
-    else
-        DESKTOP_DIR="$HOME/.local/share/applications"
-        mkdir -p "$DESKTOP_DIR"
-        echo "$DESKTOP_FILE" > "$DESKTOP_DIR/ytmdl.desktop"
-    fi
-    
-    print_success "Desktop shortcut created"
-    
-    # Set correct permissions for ytmdl directory
-    if [ -n "$SUDO_USER" ]; then
-        chown -R $SUDO_USER:$(id -gn $SUDO_USER) "$YTMDL_DIR"
+        
+        if command_exists "$package_cmd"; then
+            if [ -z "$version_cmd" ]; then
+                print_success "$package_name installed successfully"
+            else
+                version=$($version_cmd)
+                print_success "$package_name installed successfully: $version"
+            fi
+            return 0
+        else
+            print_error "$package_name installation verification failed!"
+            return 1
+        fi
     fi
 }
 
-# Create symbolic link to make ytmdl available system-wide
-create_symlink() {
-    # Get the user who executed sudo
-    if [ -n "$SUDO_USER" ]; then
-        USER_HOME=$(eval echo ~$SUDO_USER)
+# Function to clone or update repository
+setup_repository() {
+    local repo_path="$HOME/ytmdl"
+    
+    if [ -d "$repo_path" ] && [ "$(ls -A "$repo_path" 2>/dev/null)" ]; then
+        print_message "The ~/ytmdl directory already exists and is not empty."
+        echo "  [1] Update the existing repository"
+        echo "  [2] Overwrite with a fresh clone"
+        echo "  [3] Skip repository operations"
+        read -p "Choose an option [1]: " repo_choice
+        repo_choice=${repo_choice:-1}
+        
+        case "$repo_choice" in
+            1)
+                print_message "Updating repository..."
+                cd "$repo_path"
+                git pull
+                ;;
+            2)
+                print_message "Creating fresh ytmdl directory..."
+                rm -rf "$repo_path"
+                mkdir -p "$repo_path"
+                cd "$repo_path"
+                print_message "Cloning ytmdl repository..."
+                git clone https://github.com/KaedeYure/ytmdl.git .
+                ;;
+            3)
+                print_message "Skipping repository operations."
+                cd "$repo_path"
+                ;;
+            *)
+                print_message "Invalid option. Updating repository..."
+                cd "$repo_path"
+                git pull
+                ;;
+        esac
     else
-        USER_HOME=$HOME
+        print_message "Creating ytmdl directory..."
+        mkdir -p "$repo_path"
+        cd "$repo_path"
+        print_message "Cloning ytmdl repository..."
+        git clone https://github.com/KaedeYure/ytmdl.git .
     fi
     
-    YTMDL_DIR="$USER_HOME/ytmdl"
-    
-    print_message "Creating symbolic link..."
-    ln -sf "$YTMDL_DIR/ytmdl" /usr/local/bin/ytmdl
-    
+    # Check if operation was successful
     if [ $? -ne 0 ]; then
-        print_error "Failed to create symbolic link"
+        print_error "Repository operation failed!"
+        return 1
     else
-        print_success "Symbolic link created, ytmdl is now available system-wide"
+        print_success "Repository setup completed successfully!"
     fi
+    return 0
 }
 
-# Main function
+# Install npm dependencies
+install_dependencies() {
+    local repo_path="$HOME/ytmdl"
+    
+    if [ -f "$repo_path/package.json" ]; then
+        print_message "Installing Node.js dependencies..."
+        cd "$repo_path"
+        npm install
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install dependencies!"
+            return 1
+        fi
+        
+        # Install sharp
+        print_message "Installing sharp image processing library..."
+        npm install sharp
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install sharp!"
+            return 1
+        fi
+        
+        # Run npm setup script if it exists
+        if grep -q '"setup"' package.json; then
+            print_message "Running setup script..."
+            npm run setup
+            
+            if [ $? -ne 0 ]; then
+                print_error "Setup script failed!"
+                return 1
+            fi
+            
+            print_success "Setup script completed successfully!"
+        else
+            print_warning "No setup script found in package.json"
+        fi
+        
+        print_success "Dependencies installed successfully!"
+    else
+        print_warning "No package.json found, skipping dependency installation."
+    fi
+    
+    return 0
+}
+
+# Main setup process
 main() {
-    clear
-    echo "======================================================="
-    echo "     YouTube Music Downloader Setup - Linux Version    "
-    echo "======================================================="
-    echo ""
+    # Welcome message
+    echo -e "\n${GREEN}====== Linux YTMDL Setup ======${RESET}\n"
+    print_message "This script will set up your Linux environment for YTMDL."
+    print_message "You'll only be prompted for Python, pip and ffmpeg installations."
     
-    check_root
+    # Detect package manager
     detect_package_manager
-    check_git
-    check_nodejs
-    check_python
-    check_ffmpeg
-    setup_repository
-    create_symlink
     
+    # Update package lists
+    print_message "Updating package lists..."
+    sudo $PKG_UPDATE
+    
+    # Install required packages
+    install_package "git" "git" "git --version"
+    git_installed=$?
+    
+    install_package "nodejs" "node" "node --version"
+    node_installed=$?
+    
+    # Check npm installation after node
+    if command_exists npm; then
+        npm_version=$(npm --version)
+        print_success "npm is installed: $npm_version"
+        npm_installed=0
+    else
+        print_warning "Node.js is installed but npm was not found. This is unusual."
+        install_package "npm" "npm" "npm --version"
+        npm_installed=$?
+    fi
+    
+    # Install Python 3 (with confirmation)
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        install_package "python3" "python3" "python3 --version"
+    elif [ "$PKG_MANAGER" = "pacman" ]; then
+        install_package "python" "python3" "python3 --version"
+    else
+        install_package "python3" "python3" "python3 --version"
+    fi
+    python_installed=$?
+    
+    # Check for pip and install if needed (with confirmation)
+    if command_exists pip3; then
+        pip_version=$(pip3 --version)
+        print_success "pip is installed: $pip_version"
+    elif command_exists pip; then
+        pip_version=$(pip --version)
+        print_success "pip is installed: $pip_version"
+    else
+        print_warning "Python is installed but pip was not found."
+        install_package "pip" "pip3" "pip3 --version"
+    fi
+    
+    # Install ffmpeg (with confirmation)
+    install_package "ffmpeg" "ffmpeg" "ffmpeg -version | head -n 1"
+    ffmpeg_installed=$?
+    
+    # Repository setup only if Git is installed
+    if [ $git_installed -eq 0 ]; then
+        setup_repository
+    else
+        print_warning "Repository setup skipped because Git is not installed."
+    fi
+    
+    # Install dependencies only if Node.js and npm are installed
+    if [ $node_installed -eq 0 ] && [ $npm_installed -eq 0 ]; then
+        install_dependencies
+    else
+        print_warning "Dependency installation skipped because Node.js or npm is not installed."
+    fi
+    
+    # Print summary
     echo ""
     print_success "Setup completed successfully!"
     echo ""
-    echo "Summary:"
-    echo "- Git installed: $(git --version)"
-    echo "- Node.js installed: $(node --version)"
-    echo "- npm installed: $(npm --version)"
-    echo "- Python 3 installed: $(python3 --version)"
-    echo "- FFmpeg installed: $(ffmpeg -version | head -n 1)"
+    echo -e "${GREEN}Summary:${RESET}"
     
-    # Get the user who executed sudo
-    if [ -n "$SUDO_USER" ]; then
-        USER_HOME=$(eval echo ~$SUDO_USER)
+    if command_exists git; then
+        echo "- Git: $(git --version)"
     else
-        USER_HOME=$HOME
+        echo "- Git: Not installed"
     fi
     
-    echo "- Repository cloned to: $USER_HOME/ytmdl"
+    if command_exists node; then
+        echo "- Node.js: $(node --version)"
+    else
+        echo "- Node.js: Not installed"
+    fi
+    
+    if command_exists npm; then
+        echo "- npm: $(npm --version)"
+    else
+        echo "- npm: Not installed"
+    fi
+    
+    if command_exists python3; then
+        echo "- Python: $(python3 --version)"
+    else
+        echo "- Python: Not installed"
+    fi
+    
+    if command_exists pip3; then
+        echo "- pip: $(pip3 --version)"
+    elif command_exists pip; then
+        echo "- pip: $(pip --version)"
+    else
+        echo "- pip: Not installed"
+    fi
+    
+    if command_exists ffmpeg; then
+        echo "- ffmpeg: $(ffmpeg -version | head -n 1)"
+    else
+        echo "- ffmpeg: Not installed"
+    fi
+    
+    echo "- Repository location: $HOME/ytmdl"
+    
     echo ""
-    echo "You can now run the application in the following ways:"
-    echo "1. Using the system-wide command: ytmdl"
-    echo "2. From the installation directory: $USER_HOME/ytmdl/ytmdl"
-    echo "3. Through the desktop shortcut in your applications menu"
+    echo -e "${BLUE}Next steps:${RESET}"
+    echo "1. Navigate to the ytmdl directory: cd ~/ytmdl"
+    echo "2. Run the application: node index.js"
     echo ""
 }
 

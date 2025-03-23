@@ -6,9 +6,8 @@ A simple, user-friendly tool to download music from YouTube with proper metadata
 
 ### Windows
 ```powershell
-# Run in PowerShell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-iwr -useb https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/win.ps1 | iex
+powershell "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+iwr -useb https://raw.githubusercontent.com/KaedeYure/ytmdl/main/setup/win.ps1 | iex"
 ```
 
 ### Linux/macOS

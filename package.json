@@ -1,7 +1,7 @@
 {
   "name": "ytmdl",
   "version": "1.0.0",
-  "description": "Download high-quality MP3 files from YouTube with custom tags and artwork",
+  "description": "Yure's version of ytmdl programmed in NodeJS using yt-dlp. Easy to install and use.",
   "keywords": [
     "youtube",
     "yt2mp3"

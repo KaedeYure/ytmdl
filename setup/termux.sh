@@ -105,12 +105,7 @@ main() {
     print_message "Would you like to update package lists and upgrade packages?"
     read -p "This may take some time [y/n]: " update_packages
     
-    if [[ $update_packages == "y" || $update_packages == "Y" ]]; then
-        print_message "Updating packages..."
-        apt update -y && apt upgrade -y
-    else
-        print_message "Skipping package updates."
-    fi
+    apt update -y && apt upgrade -y
     
     # Install essential packages
     print_message "Installing essential packages..."

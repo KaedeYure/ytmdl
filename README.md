@@ -1,6 +1,7 @@
 # YTMDL - YouTube Music Downloader
 
 A simple, user-friendly tool to download music from YouTube with proper metadata tagging.
+This is Yure's version of YTMDL coded in NodeJS, made for easy personal usage.
 
 ## Quick Installation
 

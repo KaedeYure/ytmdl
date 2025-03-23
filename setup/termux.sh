@@ -98,7 +98,7 @@ fi
 
 # Install Python 3
 print_message "Installing Python 3..."
-apt install -y python || {
+apt install -y python3 || {
     print_error "Failed to install Python 3."
     exit 1
 }

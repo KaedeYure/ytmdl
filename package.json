@@ -25,7 +25,7 @@
     "start": "node lib/server.js",
     "setup": "node installer.js",
     "uninstall": "node uninstaller.js",
-    "update": "node updater.js"
+    "update": "git pull"
   },
   "dependencies": {
     "@distube/ytpl": "^1.2.1",

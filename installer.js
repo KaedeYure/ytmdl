@@ -8,7 +8,6 @@ const https = require('https');
 const { createWriteStream, existsSync, mkdirSync, writeFileSync } = require('fs');
 const { promisify } = require('util');
 const readline = require('readline');
-const { update } = require('./updater');
 
 const execAsync = promisify(exec);
 
@@ -610,4 +609,3 @@ const install = async () => {
 
 // Run the installer
 install();
-update();

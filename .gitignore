@@ -3,3 +3,4 @@ temp
 node_modules
 package-lock.json
 ytmdl.bat
+updater.js

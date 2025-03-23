@@ -8,157 +8,188 @@ WHITE="\033[1;37m"
 RESET="\033[0m"
 
 # Print colorful messages
-print_message() {
+function print_message() {
     echo -e "${BLUE}==>${RESET} ${WHITE}$1${RESET}"
 }
 
-print_success() {
+function print_success() {
     echo -e "${GREEN}==>${RESET} ${WHITE}$1${RESET}"
 }
 
-print_error() {
+function print_error() {
     echo -e "${RED}==>${RESET} ${WHITE}$1${RESET}"
 }
 
-# Check if script is running in Termux
+# Make sure we're running in Termux
 if [ ! -d "/data/data/com.termux/files/usr" ]; then
     print_error "This script must be run in Termux!"
     exit 1
 fi
 
-# Function to install a package if not already installed
-install_package() {
-    local package_name="$1"
-    local package_cmd="$2"
-    local version_cmd="$3"
-    
-    if command -v "$package_cmd" &> /dev/null; then
-        print_success "$package_name is already installed: $($version_cmd)"
-    else
-        print_message "Installing $package_name..."
-        apt install -y "$package_name"
-        
-        if ! command -v "$package_cmd" &> /dev/null; then
-            print_error "$package_name installation failed!"
-            return 1
-        else
-            print_success "$package_name installed successfully: $($version_cmd)"
-        fi
-    fi
-    return 0
-}
+# Initial setup
+print_message "Performing initial Termux setup..."
+termux-setup-storage
 
-# Function to clone or update repository
-setup_repository() {
-    if [ -d ~/ytmdl ] && [ "$(ls -A ~/ytmdl)" ]; then
-        print_message "The ~/ytmdl directory already exists and is not empty."
-        read -p "Do you want to update it (u), overwrite it (o), or skip (s)? [u/o/s]: " repo_action
-        
-        case "$repo_action" in
-            u|U)
-                print_message "Updating repository..."
-                cd ~/ytmdl
-                git pull
-                ;;
-            o|O)
-                print_message "Creating fresh ytmdl directory..."
-                rm -rf ~/ytmdl
-                mkdir -p ~/ytmdl
-                cd ~/ytmdl
-                print_message "Cloning ytmdl repository..."
-                git clone https://github.com/KaedeYure/ytmdl.git .
-                ;;
-            *)
-                print_message "Skipping repository setup."
-                cd ~/ytmdl
-                ;;
-        esac
-    else
-        print_message "Creating ytmdl directory..."
-        mkdir -p ~/ytmdl
-        cd ~/ytmdl
-        print_message "Cloning ytmdl repository..."
-        git clone https://github.com/KaedeYure/ytmdl.git .
-    fi
+# Update and upgrade packages without asking
+print_message "Updating package lists and upgrading packages..."
+apt update -y && apt upgrade -y
+
+# Install essential tools
+print_message "Installing essential packages..."
+apt install -y coreutils nano wget curl proot
+
+# Check and install Git
+if command -v git &> /dev/null; then
+    print_success "Git is already installed: $(git --version)"
+else
+    print_message "Installing Git..."
+    apt install -y git
     
-    # Check if operation was successful
+    # Check git installation
+    if ! command -v git &> /dev/null; then
+        print_error "Git installation failed!"
+        exit 1
+    else
+        print_success "Git installed successfully: $(git --version)"
+    fi
+fi
+
+# Check and install Node.js
+if command -v node &> /dev/null; then
+    print_success "Node.js is already installed: $(node --version)"
+else
+    print_message "Installing Node.js..."
+    apt install -y nodejs
+    
+    # Check Node.js installation
+    if ! command -v node &> /dev/null; then
+        print_error "Node.js installation failed!"
+        exit 1
+    else
+        print_success "Node.js installed successfully: $(node --version)"
+    fi
+fi
+
+# Check and install npm
+if command -v npm &> /dev/null; then
+    print_success "npm is already installed: $(npm --version)"
+else
+    print_message "Installing npm..."
+    apt install -y npm
+    
+    # Check npm installation
+    if ! command -v npm &> /dev/null; then
+        print_error "npm installation failed!"
+        exit 1
+    else
+        print_success "npm installed successfully: $(npm --version)"
+    fi
+fi
+
+# Check and install Python 3
+if command -v python3 &> /dev/null; then
+    print_success "Python 3 is already installed: $(python3 --version)"
+else
+    print_message "Installing Python 3..."
+    apt install -y python
+    
+    # Check Python 3 installation
+    if ! command -v python3 &> /dev/null; then
+        print_error "Python 3 installation failed!"
+        exit 1
+    else
+        print_success "Python 3 installed successfully: $(python3 --version)"
+    fi
+fi
+
+# Check and install pip for Python 3
+if command -v pip3 &> /dev/null; then
+    print_success "pip3 is already installed: $(pip3 --version)"
+else
+    print_message "Installing pip for Python 3..."
+    apt install -y python-pip
+    
+    # Check pip3 installation
+    if ! command -v pip3 &> /dev/null; then
+        print_error "pip3 installation failed!"
+        exit 1
+    else
+        print_success "pip3 installed successfully: $(pip3 --version)"
+    fi
+fi
+
+# Check and install ffmpeg
+if command -v ffmpeg &> /dev/null; then
+    print_success "ffmpeg is already installed: $(ffmpeg -version | head -n 1)"
+else
+    print_message "Installing ffmpeg..."
+    apt install -y ffmpeg
+    
+    # Check ffmpeg installation
+    if ! command -v ffmpeg &> /dev/null; then
+        print_error "ffmpeg installation failed!"
+        exit 1
+    else
+        print_success "ffmpeg installed successfully: $(ffmpeg -version | head -n 1)"
+    fi
+fi
+
+# Check if ytmdl directory already exists
+if [ -d ~/ytmdl ] && [ "$(ls -A ~/ytmdl)" ]; then
+    print_message "The ~/ytmdl directory already exists and is not empty."
+    print_message "Creating fresh ytmdl directory in home folder..."
+    rm -rf ~/ytmdl
+    mkdir -p ~/ytmdl
+    cd ~/ytmdl
+    
+    print_message "Cloning ytmdl repository..."
+    git clone https://github.com/KaedeYure/ytmdl.git .
+else
+    print_message "Creating ytmdl directory in home folder..."
+    mkdir -p ~/ytmdl
+    cd ~/ytmdl
+    
+    print_message "Cloning ytmdl repository..."
+    git clone https://github.com/KaedeYure/ytmdl.git .
+fi
+
+# Check if clone was successful
+if [ $? -ne 0 ]; then
+    print_error "Failed to clone the repository!"
+    exit 1
+else
+    print_success "Repository cloned successfully!"
+fi
+
+# Install dependencies if package.json exists
+if [ -f "package.json" ]; then
+    print_message "Installing Node.js dependencies..."
+    npm install
+    
+    # Install sharp with WASM support for Android
+    print_message "Installing sharp with WASM support for Termux..."
+    npm install --cpu=wasm32 sharp
+    
     if [ $? -ne 0 ]; then
-        print_error "Repository operation failed!"
-        return 1
+        print_error "Failed to install dependencies!"
+        exit 1
     else
-        print_success "Repository setup completed successfully!"
+        print_success "Dependencies installed successfully!"
     fi
-    return 0
-}
+else
+    print_message "No package.json found, skipping dependency installation."
+fi
 
-# Main setup process
-main() {
-    # Welcome message
-    echo -e "\n${GREEN}====== Termux YTMDL Setup ======${RESET}\n"
-    print_message "This script will set up your Termux environment for YTMDL."
-    
-    # Initial setup - storage access
-    print_message "Setting up Termux storage access..."
-    termux-setup-storage
-    
-    # Package updates
-    print_message "Would you like to update package lists and upgrade packages?"
-    read -p "This may take some time [y/n]: " update_packages
-    
-    apt update -y && apt upgrade -y
-    
-    # Install essential packages
-    print_message "Installing essential packages..."
-    apt install -y coreutils nano wget curl proot
-    
-    # Install required packages using our function
-    install_package "git" "git" "git --version" || exit 1
-    install_package "nodejs" "node" "node --version" || exit 1
-    install_package "npm" "npm" "npm --version" || exit 1
-    install_package "python" "python3" "python3 --version" || exit 1
-    install_package "python-pip" "pip3" "pip3 --version" || exit 1
-    install_package "ffmpeg" "ffmpeg" "ffmpeg -version | head -n 1" || exit 1
-    
-    # Repository setup
-    setup_repository || exit 1
-    
-    # Install dependencies if package.json exists
-    if [ -f "package.json" ]; then
-        print_message "Installing Node.js dependencies..."
-        npm install
-        
-        # Install sharp with WASM support for Android
-        print_message "Installing sharp with WASM support for Termux..."
-        npm install --cpu=wasm32 sharp
-        
-        if [ $? -ne 0 ]; then
-            print_error "Failed to install dependencies!"
-            exit 1
-        else
-            print_success "Dependencies installed successfully!"
-        fi
-    else
-        print_message "No package.json found, skipping dependency installation."
-    fi
-    
-    # Print summary
-    echo ""
-    print_success "Setup completed successfully!"
-    echo ""
-    echo -e "${GREEN}Summary:${RESET}"
-    echo "- Termux storage access setup"
-    echo "- Git installed: $(git --version)"
-    echo "- Node.js installed: $(node --version)"
-    echo "- npm installed: $(npm --version)"
-    echo "- Python 3 installed: $(python3 --version)"
-    echo "- pip3 installed: $(pip3 --version)"
-    echo "- ffmpeg installed: $(ffmpeg -version | head -n 1)"
-    echo "- Repository location: $HOME/ytmdl"
-    echo ""
-    echo -e "${BLUE}Next steps:${RESET}"
-    echo "1. Navigate to the ytmdl directory: cd ~/ytmdl"
-    echo "2. Run the application: node index.js"
-}
-
-# Run the main function
-main
+# Print summary
+echo ""
+print_success "Setup completed successfully!"
+echo ""
+echo -e "${GREEN}Summary:${RESET}"
+echo "- Termux storage access setup"
+echo "- Git installed: $(git --version)"
+echo "- Node.js installed: $(node --version)"
+echo "- npm installed: $(npm --version)"
+echo "- Python 3 installed: $(python3 --version)"
+echo "- pip3 installed: $(pip3 --version)"
+echo "- ffmpeg installed: $(ffmpeg -version | head -n 1)"
+echo "- Repository location: $HOME/ytmdl"

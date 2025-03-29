@@ -197,15 +197,6 @@ install_dependencies() {
             return 1
         fi
         
-        # Install sharp
-        print_message "Installing sharp image processing library..."
-        npm install sharp
-        
-        if [ $? -ne 0 ]; then
-            print_error "Failed to install sharp!"
-            return 1
-        fi
-        
         # Run npm setup script if it exists
         if grep -q '"setup"' package.json; then
             print_message "Running setup script..."

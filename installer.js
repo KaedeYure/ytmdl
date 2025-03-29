@@ -23,7 +23,7 @@ const YTDLP_RELEASES = {
 const NPM_PACKAGES = [
   'express', 'cors', 'node-id3', 'multer', 'uuid', 
   '@distube/ytpl', 'socket.io', 'archiver',
-  'open', 'chalk'
+  'open', 'chalk', 'os'
 ];
 
 const FFMPEG_STATIC_PACKAGE = 'ffmpeg-static';
@@ -177,8 +177,18 @@ const installNpmPackages = async (isTermux) => {
     
     // Install Sharp separately with special flags for Termux/Android
     if (isTermux) {
-      console.log('Installing Sharp with WASM support for Termux...');
-      const sharpCmd = 'npm install --cpu=wasm32 sharp';
+      console.log('Installing proper Sharp for Termux...');
+      const os = require('os');
+      const arch = os.arch();
+      
+      let sharpCmd;
+      if (arch === 'arm') {
+        sharpCmd = 'npm install sharp-linux-arm';
+      } else if (arch === 'arm64') {
+        sharpCmd = 'npm install sharp-linux-arm64';
+      } else {
+        sharpCmd = 'npm install sharp'
+      }
       console.log(`Running: ${sharpCmd}`);
       
       const { stdout: sharpStdout, stderr: sharpStderr } = await execAsync(sharpCmd, {
